@@ -26,7 +26,7 @@
 > Debian packages for ROS 2 Humble Hawksbill are currently available for Ubuntu Jammy (22.04).  
 > Source installation is available for Ubuntu Focal (20.04).  
 
-3. [Cylinder3D](https://github.com/NeSC-IV/sem_pub), [RangeNet++](https://github.com/NeSC-IV/RangeNetTrt8)  
+3. [Cylinder3D](https://github.com/NeSC-IV/cylinder3d_ros2), [RangeNet++](https://github.com/NeSC-IV/RangeNetTrt8)  
 Semantic segmentation models for LiDAR point clouds, could select one installation.
 
 ## Install

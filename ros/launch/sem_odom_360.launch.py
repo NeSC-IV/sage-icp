@@ -16,8 +16,8 @@ def generate_launch_description():
     sem_launch_include = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
         os.path.join(
-            get_package_share_directory('sem_pub'),
-            'launch/sem_pub.launch.py'))
+            get_package_share_directory('cylinder3d_ros2'),
+            'launch/cylinder3d_ros2.launch.py'))
     )
 
     odom_launch_include = IncludeLaunchDescription(
