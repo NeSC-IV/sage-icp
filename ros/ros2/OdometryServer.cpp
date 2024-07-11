@@ -299,8 +299,9 @@ void ctrl_c_handler(int sig) {
     auto local_time = std::localtime(&timestamp);
 
     std::string file_dir = std::to_string(1900 + local_time->tm_year) + std::to_string(1 + local_time->tm_mon) + std::to_string(local_time->tm_mday) + "_" + std::to_string(local_time->tm_hour) + "_" + std::to_string(local_time->tm_min) + "_" + std::to_string(local_time->tm_sec);
-
-    string homepath = string("/home/oliver/catkin_ros2/src/sage-icp/results/") + file_dir;
+    std::filesystem::path current_file_path(__FILE__);
+    std::filesystem::path directory_path = current_file_path.parent_path().parent_path().parent_path();
+    string homepath = string(directory_path) + "/results/" + file_dir;
     if (std::filesystem::exists(homepath) && std::filesystem::is_directory(homepath)) {
         std::cout << "Directory exists!" << std::endl;
     } else {
