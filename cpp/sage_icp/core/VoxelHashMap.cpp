@@ -150,7 +150,14 @@ void VoxelHashMap::Update(const Vector4dVector &points, const Eigen::Vector3d &o
 void VoxelHashMap::Update(const Vector4dVector &points, const Sophus::SE3d &pose) {
     Vector4dVector points_transformed(points.size());
     std::transform(points.cbegin(), points.cend(), points_transformed.begin(),
-                   [&](const auto &point) { Eigen::Vector3d v3point(point[0], point[1], point[2]); Eigen::Vector4d v4point; v4point << pose * v3point, point[3]; return v4point; });
+                   [&](const auto &point) {
+                    Eigen::Vector3d v3point(point[0], point[1], point[2]);
+                    Eigen::Vector3d transformed_v3point = pose * v3point;
+                    Eigen::Vector4d v4point(transformed_v3point[0], transformed_v3point[1], transformed_v3point[2], point[3]);
+                    // Eigen::Vector4d v4point;
+                    // v4point << pose * v3point, point[3];
+                    return v4point;
+                    });
     const Eigen::Vector3d &origin = pose.translation();
     Update(points_transformed, origin);
 }

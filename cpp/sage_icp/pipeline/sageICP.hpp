@@ -29,11 +29,11 @@
 #include "sage_icp/core/Threshold.hpp"
 #include "sage_icp/core/VoxelHashMap.hpp"
 #include "sage_icp/core/ikd_Tree.h"
-#include <pcl/point_types.h>
-#include <pcl/point_cloud.h>
-#include <pcl/filters/uniform_sampling.h>
-#include <pcl/filters/voxel_grid.h>
-#include <pcl/registration/transforms.h>
+// #include <pcl/point_types.h>
+// #include <pcl/point_cloud.h>
+// #include <pcl/filters/uniform_sampling.h>
+// #include <pcl/filters/voxel_grid.h>
+// #include <pcl/registration/transforms.h>
 #include <chrono>
 
 namespace sage_icp::pipeline {

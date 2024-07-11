@@ -27,7 +27,7 @@ from numpy.linalg import inv
 import tf_transformations
 import cv2
 # from cv_bridge import CvBridge
-import progressbar
+# import progressbar
 from tf2_msgs.msg import TFMessage
 from datetime import datetime
 from std_msgs.msg import Header
@@ -345,7 +345,7 @@ class Listener(Node):
         if int(self.sequence_number) > 10:
             self.scanlabel_bool = 0
 
-        self.kitti = SemanticKitti_Raw("/media/oliver/Elements SE/dataset/KITTI", self.sequence_number, self.scanlabel_bool)
+        self.kitti = SemanticKitti_Raw("/mnt/usb/dataset/KITTI", self.sequence_number, self.scanlabel_bool)
 
         if not os.path.exists(self.kitti.data_path):
             print('Path {} does not exists. Force-quiting....'.format(self.kitti.data_path))

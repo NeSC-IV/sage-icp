@@ -34,14 +34,14 @@
 
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
-#include <pcl/visualization/pcl_visualizer.h>
-#include <pcl/surface/concave_hull.h>
-#include <pcl/kdtree/kdtree_flann.h>
+// #include <pcl/visualization/pcl_visualizer.h>
+// #include <pcl/surface/concave_hull.h>
+// #include <pcl/kdtree/kdtree_flann.h>
 // #include <pcl/filters/uniform_sampling.h>
-#include <pcl/filters/approximate_voxel_grid.h>
+// #include <pcl/filters/approximate_voxel_grid.h>
 #include <iostream>
 #include <boost/thread/thread.hpp>
-#include <pcl/range_image/range_image.h>
+// #include <pcl/range_image/range_image.h>
 #include <pcl/io/pcd_io.h>
 #include <omp.h>
 #include <map>

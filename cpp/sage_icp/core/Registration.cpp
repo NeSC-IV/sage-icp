@@ -58,7 +58,14 @@ struct ResultTuple {
 
 void TransformPoints(const Sophus::SE3d &T, std::vector<Eigen::Vector4d> &points) {
     std::transform(points.cbegin(), points.cend(), points.begin(),
-                   [&](const auto &point) { Eigen::Vector3d v3point(point[0],point[1],point[2]); Eigen::Vector4d v4point; v4point << T * v3point, point[3]; return v4point; });
+                   [&](const auto &point) {
+                    Eigen::Vector3d v3point(point[0],point[1],point[2]);
+                    Eigen::Vector3d transformed_v3point = T * v3point;
+                    Eigen::Vector4d v4point(transformed_v3point[0], transformed_v3point[1], transformed_v3point[2], point[3]);
+                    // Eigen::Vector4d v4point;
+                    // v4point << T * v3point, point[3];
+                    return v4point;
+                    });
 }
 
 Sophus::SE3d AlignClouds(const std::vector<Eigen::Vector4d> &source,
