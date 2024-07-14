@@ -1,0 +1,39 @@
+# This file is covered by the LICENSE file in the root of this project.
+labels: 
+  0 : "unlabeled" #噪点、无效点
+  1 : "column" #"柱状物"（箱子、花盆等）
+  2 : "cabinet" #"柜子"
+  3 : "table" #"桌子"
+  4 : "chair" #"椅子"
+  5 : "other-object" #"杂物" 电脑、车等
+  6 : "protective-net" #"防护网"
+  7 : "curtain" #"窗帘"
+  8 : "plant" #"植物"
+  9 : "person" #"人"
+  10: "board" #"门板"
+  11: "glass" #"玻璃" 玻璃门、窗户
+  12: "ground" #"地面"
+  13: "wall" #"墙壁"
+color_map: # bgr  
+  0 : [0, 0, 0]
+  1 : [0, 60, 135]
+  2 : [0, 200, 255]
+  3 : [0, 255, 255]
+  4 : [255, 255, 102]
+  5 : [0, 0, 153]
+  6 : [160, 160, 160]
+  7 : [204, 0, 102]
+  8 : [0, 175, 0]
+  9 : [90, 90, 255]
+  10: [0, 120, 255]
+  11: [255, 204, 153]
+  12: [255, 204, 255]
+  13: [255, 255, 255]
+round: # round split
+  0 : [0, 4484]
+  1 : [4485, 6659]
+  2 : [6660, 8299]
+s1: # sequence split 1
+  [0, 1]
+s2: # sequence split 2
+  [0, 2]

@@ -1,0 +1,160 @@
+
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument, ExecuteProcess
+from launch.conditions import IfCondition
+from launch.substitutions import (
+    LaunchConfiguration,
+    PathJoinSubstitution,
+    PythonExpression,
+)
+from launch_ros.actions import Node
+from launch_ros.substitutions import FindPackageShare
+import os
+import yaml
+class Basic_config():
+    def __init__(self, color_yaml="semantic-kitti.yaml"):
+        # ROS2 parameters
+        self.pc_topic: str = "/label_points" # input pointcloud topic
+        self.base_frame: str = "base_link"
+        self.odom_frame: str = "odom"
+        self.odom_topic: str = "/sage_icp/odometry"
+        self.trajectory_topic: str = "/sage_icp/trajectory"
+
+        self.publish_frame: bool = True # publish frame in odom and map for visualization
+        self.frame_topic: str = "/sage_icp/frame"
+        self.local_map_topic: str = "/sage_icp/local_map"
+
+        self.sub_ground_truth: bool = False
+        self.gt_topic: str = "/ground_truth" # input gt_topic
+        self.gt_trajectory_topic: str = "/sage_icp/gt_trajectory"
+        
+        # Pointcloud pre-process
+        self.deskew: bool = False # Point cloud deskew
+        self.max_range: float = 30.0 # pointcloud max range
+        self.min_range: float = 1.0 # pointcloud min range
+        self.label_max_range: float = 20.0 # label max range
+        
+        # Voxel grid filter
+        self.voxel_labels = [
+            [0],  # unlabelled
+            [1, 8],  # object
+            [2, 3, 4, 5],  # furniture
+            [6, 7, 10, 11, 12, 13],  # large planar
+        ]
+        self.voxel_labels_str: str = self.pack_2d_array(self.voxel_labels) # pack 2d array to string
+        self.voxel_size: list = [0.5, 0.1, 0.2, 0.3]
+
+        # Dynamic cars remove
+        self.dynamic_vehicle_filter: bool = False
+        self.dynamic_vehicle_filter_th: float = 0.1
+        self.dynamic_vehicle_voxid: int = 5 # voxid in voxel_labels
+        self.dynamic_remove_lankmark: list = [44, 48] # landmark labels for dynamic remove
+        
+        # Map
+        self.voxel_size_map: float = 0.2
+        self.local_map_range: float = 30.0
+        self.basic_points_per_voxel: int = 20 # basic part
+        self.critical_points_per_voxel: int = 20 # critical part
+        self.basic_parts_labels: list = [0, 2, 3, 4, 5, 6, 7, 10, 11, 12, 13] # basic parts labels, others are critical parts
+        
+        # Semantic assisted association
+        self.sem_th: float = 0.2
+        
+        # KISS-ICP Adaptive threshold
+        self.initial_threshold: float = 2.0
+        self.min_motion_th: float = 0.1
+
+        # color map
+        self.current_pkg = FindPackageShare("sage_icp")
+        current_pkg_path_str = self.current_pkg.find("sage_icp")
+        label_mapping = os.path.join(current_pkg_path_str, "launch", color_yaml)
+        with open(label_mapping, 'r') as stream:
+            semkittiyaml = yaml.safe_load(stream)
+        color_map_bgr = semkittiyaml['color_map']
+        self.color_list = []
+        for key, value in color_map_bgr.items():
+            b, g, r = value
+            rgb = (int(r) << 16) | (int(g) << 8) | int(b)
+            self.color_list.append([key,rgb])
+        self.color_list_str: str = self.pack_2d_array(self.color_list)
+
+        # RVIZ2 and ROS2 bag play
+        self.visualize: str = "true" # must be string
+        self.bagfile: str = ""
+    
+    def pack_2d_array(self, array_2d):
+        return ';'.join([','.join(map(str, row)) for row in array_2d])
+
+
+def generate_launch_description():
+    
+    sage_icp_config = Basic_config("livox_labels.yaml")
+    # SAGE-ICP Node
+    sage_icp_node = Node(
+                    package="sage_icp",
+                    executable="odometry_node",
+                    name="odometry_node",
+                    output="screen",
+                    # remappings=[("pointcloud_topic", LaunchConfiguration("topic"))],
+                    parameters=[
+                        {
+                            "pc_topic": sage_icp_config.pc_topic,
+                            "base_frame": sage_icp_config.base_frame,
+                            "odom_frame": sage_icp_config.odom_frame,
+                            "odom_topic": sage_icp_config.odom_topic,
+                            "trajectory_topic": sage_icp_config.trajectory_topic,
+                            "publish_frame": sage_icp_config.publish_frame,
+                            "frame_topic": sage_icp_config.frame_topic,
+                            "local_map_topic": sage_icp_config.local_map_topic,
+                            "sub_ground_truth": sage_icp_config.sub_ground_truth,
+                            "gt_topic": sage_icp_config.gt_topic,
+                            "gt_trajectory_topic_": sage_icp_config.gt_trajectory_topic,
+                            "deskew": sage_icp_config.deskew,
+                            "max_range": sage_icp_config.max_range,
+                            "min_range": sage_icp_config.min_range,
+                            "label_max_range": sage_icp_config.label_max_range,
+                            "voxel_labels_str": sage_icp_config.voxel_labels_str,
+                            "voxel_size": sage_icp_config.voxel_size,
+                            "dynamic_vehicle_filter": sage_icp_config.dynamic_vehicle_filter,
+                            "dynamic_vehicle_filter_th": sage_icp_config.dynamic_vehicle_filter_th,
+                            "dynamic_vehicle_voxid": sage_icp_config.dynamic_vehicle_voxid,
+                            "dynamic_remove_lankmark": sage_icp_config.dynamic_remove_lankmark,
+                            "voxel_size_map": sage_icp_config.voxel_size_map,
+                            "local_map_range": sage_icp_config.local_map_range,
+                            "basic_points_per_voxel": sage_icp_config.basic_points_per_voxel,
+                            "critical_points_per_voxel": sage_icp_config.critical_points_per_voxel,
+                            "basic_parts_labels": sage_icp_config.basic_parts_labels,
+                            "sem_th": sage_icp_config.sem_th,
+                            "initial_threshold": sage_icp_config.initial_threshold,
+                            "min_motion_th": sage_icp_config.min_motion_th,
+                            "color_list_str": sage_icp_config.color_list_str,
+                        }
+                    ],
+                )
+    # RVIZ2
+    rviz2_node = Node(
+                    package="rviz2",
+                    executable="rviz2",
+                    output={"both": "log"},
+                    arguments=["-d", PathJoinSubstitution([sage_icp_config.current_pkg, "rviz", "sage_icp_ros2.rviz"])],
+                    condition=IfCondition(sage_icp_config.visualize),
+                    )
+    # ROS2 bag play
+    bag_play = ExecuteProcess(
+                    cmd=["ros2", "bag", "play", sage_icp_config.bagfile],
+                    output="screen",
+                    condition=IfCondition(
+                        PythonExpression(["'", sage_icp_config.bagfile, "' != ''"])
+                    ),
+                )
+    return LaunchDescription(
+        [
+            sage_icp_node,
+            rviz2_node,
+            bag_play,
+        ]
+    )
+
+
+if __name__ == "__main__":
+    generate_launch_description()
