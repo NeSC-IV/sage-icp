@@ -367,7 +367,7 @@ class Listener(Node):
         self.gty = []                    # 定义一个 y 轴的空列表用来接收动态的数据
         plt.ion()                  # 开启一个画图的窗口
         self.subscriber = self.create_subscription(Odometry,
-                                                  "odometry",
+                                                  "/sage_icp/odometry",
                                                   self.sub_callback,
                                                   10)
         self.label_lidar_pub = self.create_publisher(PointCloud2, '/label_points',1)

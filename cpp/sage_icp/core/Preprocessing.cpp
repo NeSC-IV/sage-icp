@@ -41,76 +41,39 @@ struct VoxelHash {
 }  // namespace
 
 namespace sage_icp {
-std::vector<Eigen::Vector4d> VoxelDownsample(const std::vector<Eigen::Vector4d> &frame, double voxel_size_road, double voxel_size_building, double voxel_size_plant,
-                                                     double voxel_size_object, double voxel_size_unlabel, double voxel_size_vehicle) {
-    std::vector<double> voxel_size_group = {voxel_size_road, voxel_size_building, voxel_size_plant, voxel_size_object, voxel_size_unlabel, voxel_size_vehicle};
-    // 点云分类
-    // ******************************************* //
-    // 0 : "unlabeled"
-    // 1 : "outlier"
-    
-    // 10: "car"
-    // 11: "bicycle"
-    // 13: "bus"
-    // 15: "motorcycle"
-    // 16: "on-rails"
-    // 18: "truck"
-    // 20: "other-vehicle"
-    
-    // 30: "person"
-    // 31: "bicyclist"
-    // 32: "motorcyclist"
-
-    // 40: "road"
-    // 44: "parking"
-    // 48: "sidewalk"
-    // 49: "other-ground"
-    
-    // 50: "building"
-    // 51: "fence"
-    // 52: "other-structure"
-    
-    // 60: "lane-marking"
-    // 70: "vegetation"
-    // 71: "trunk"
-    // 72: "terrain"
-    // 80: "pole"
-    // 81: "traffic-sign"
-    // 99: "other-object"
-    
-    // 252: "moving-car"
-    // 253: "moving-bicyclist"
-    // 254: "moving-person"
-    // 255: "moving-motorcyclist"
-    // 256: "moving-on-rails"
-    // 257: "moving-bus"
-    // 258: "moving-truck"
-    // 259: "moving-other-vehicle"
-    std::vector<tsl::robin_map<Voxel, Eigen::Vector4d, VoxelHash>> grid_group(6);
-    for (int i = 0; i < 6; i++)
+std::vector<Eigen::Vector4d> VoxelDownsample(const std::vector<Eigen::Vector4d> &frame,
+                                            const std::vector<std::vector<int>> &voxel_labels,
+                                            const std::vector<double> &voxel_size,
+                                            double vox_scale) {
+    int voxel_size_len = static_cast<int>(voxel_size.size());
+    // init grid group
+    std::vector<tsl::robin_map<Voxel, Eigen::Vector4d, VoxelHash>> grid_group(voxel_size_len);
+    for (int i = 0; i < voxel_size_len; i++)
     {
         tsl::robin_map<Voxel, Eigen::Vector4d, VoxelHash> grid;
         grid.reserve(frame.size());
         grid_group.emplace_back(grid);
     }
-
+    // insert points into grid
     for (const auto &point : frame) {
         int label = static_cast<int>(point[3]);
         int group = -1;
-        if (label > 39 && label < 50) group = 0; // road
-        else if (label > 49 && label < 60) group = 1; // building
-        else if (label == 70 || label == 72) group = 2; // vegetation
-        else if (label == 71 || label == 60 || (label < 100 && label > 72)) group = 3; // object
-        else if (label == 0) group = 4; // unlabel
-        else if (label > 9 && label < 21) group = 5; // vehicle
-        else continue; 
-        const auto voxel = Voxel((point.head<3>() / voxel_size_group[group]).cast<int>()); //获取体素坐标
+        for (int i = 0; i < voxel_size_len; i++)
+        {
+            if (std::find(voxel_labels[i].begin(), voxel_labels[i].end(), label) != voxel_labels[i].end())
+            {
+                group = i;
+                break;
+            }
+        }
+        if (group == -1) continue;
+        const auto voxel = Voxel((point.head<3>() / (voxel_size[group] * vox_scale)).cast<int>()); //获取体素坐标
         if (grid_group[group].contains(voxel)) continue;
         grid_group[group].insert({voxel, point});
     }
     std::vector<Eigen::Vector4d> frame_dowsampled;
     frame_dowsampled.reserve(frame.size());
-    for (int i = 0; i < 6; i++)
+    for (int i = 0; i < voxel_size_len; i++)
     {
         for (const auto &[voxel, point] : grid_group[i]) {
             (void)voxel;
@@ -123,8 +86,11 @@ std::vector<Eigen::Vector4d> VoxelDownsample(const std::vector<Eigen::Vector4d> 
 std::vector<Eigen::Vector4d> Preprocess(const std::vector<Eigen::Vector4d> &frame,
                                         double max_range,
                                         double min_range,
+                                        double label_max_range,
                                         bool dynamic_vehicle_filter,
-                                        double dy_th) {
+                                        double dy_th,
+                                        const std::vector<int> &dynamic_labels,
+                                        const std::vector<int> &lankmark) {
     std::vector<Eigen::Vector4d> inliers;
     if(dynamic_vehicle_filter){
         pcl::PointCloud<pcl::PointXYZL>::Ptr map_all(new pcl::PointCloud<pcl::PointXYZL>);
@@ -134,17 +100,21 @@ std::vector<Eigen::Vector4d> Preprocess(const std::vector<Eigen::Vector4d> &fram
             Eigen::Vector4d point_new = point;
             const double norm = point.head<3>().norm(); // Euclidean norm
             if (norm < max_range && norm > min_range){
-                if (norm > 50) point_new[3] = 0.0;
+                if (norm > label_max_range) point_new[3] = 0.0;
                 pcl::PointXYZL point_temp;
                 point_temp.x = static_cast<float>(point[0]);
                 point_temp.y = static_cast<float>(point[1]);
                 point_temp.z = static_cast<float>(point[2]);
                 point_temp.label = static_cast<uint32_t>(point_new[3]);
                 map_all->points.emplace_back(point_temp);
-                if(point_temp.label > 9 && point_temp.label < 21){
+                if (std::find(dynamic_labels.begin(), dynamic_labels.end(), point_temp.label) != dynamic_labels.end()){
                     map_vehicle->points.emplace_back(point_temp);
                     vehicle_inliers.emplace_back(point_new);
                 }
+                // if(point_temp.label > 9 && point_temp.label < 21){
+                //     map_vehicle->points.emplace_back(point_temp);
+                //     vehicle_inliers.emplace_back(point_new);
+                // }
                 else{
                     inliers.emplace_back(point_new);
                 }
@@ -173,14 +143,15 @@ std::vector<Eigen::Vector4d> Preprocess(const std::vector<Eigen::Vector4d> &fram
             int count_size = 0;
             for (std::vector<int>::const_iterator pit = it->indices.begin(); pit != it->indices.end(); pit++){
                 // R半径搜索：在半径r内搜索近邻。
-                vector<int> pointIdxRadiusSearch;  // 存储近邻索引
-                vector<float> pointRadiusSquaredDistance;   // 存储近邻对应的平均距离
+                std::vector<int> pointIdxRadiusSearch;  // 存储近邻索引
+                std::vector<float> pointRadiusSquaredDistance;   // 存储近邻对应的平均距离
                 int b = maptree.radiusSearch(map_vehicle->points[*pit], 0.5f, pointIdxRadiusSearch, pointRadiusSquaredDistance);
                 if (b > 0)
                 {
                     for (size_t i = 0; i < pointIdxRadiusSearch.size(); i++)
                     {
-                        if (map_all->points[pointIdxRadiusSearch[i]].label == 44 || map_all->points[pointIdxRadiusSearch[i]].label == 48)
+                        if (std::find(lankmark.begin(), lankmark.end(), map_all->points[pointIdxRadiusSearch[i]].label) != lankmark.end())
+                        // if (map_all->points[pointIdxRadiusSearch[i]].label == 44 || map_all->points[pointIdxRadiusSearch[i]].label == 48)
                         {
                             count_size++;
                             if (count_size > static_cast<int>(dy_th * static_cast<double>(cluster_size)))
@@ -200,11 +171,19 @@ std::vector<Eigen::Vector4d> Preprocess(const std::vector<Eigen::Vector4d> &fram
         }
     }
     else{
-        std::copy_if(frame.cbegin(), frame.cend(), std::back_inserter(inliers), [&](const auto &pt) {
-            Eigen::Vector3d v3point(pt[0], pt[1], pt[2]);
-            const double norm = v3point.norm(); // Euclidean norm
-            return norm < max_range && norm > min_range;
-        });
+        for (const auto &point : frame) {
+            Eigen::Vector4d point_new = point;
+            const double norm = point.head<3>().norm(); // Euclidean norm
+            if (norm < max_range && norm > min_range){
+                if (norm > label_max_range) point_new[3] = 0.0;
+                inliers.emplace_back(point_new);
+            }
+        }
+        // std::copy_if(frame.cbegin(), frame.cend(), std::back_inserter(inliers), [&](const auto &pt) {
+        //     Eigen::Vector3d v3point(pt[0], pt[1], pt[2]);
+        //     const double norm = v3point.norm(); // Euclidean norm
+        //     return norm < max_range && norm > min_range;
+        // });
     }
     return inliers;
 }

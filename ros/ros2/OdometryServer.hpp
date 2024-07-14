@@ -49,7 +49,7 @@ private:
     /// pre-matching
     // Sophus::SE3d PreMatching(pcl::PointCloud<pcl::PointXYZ>::Ptr &building_pc);
     /// publish groundtruth
-    void RegisterGPS(const geometry_msgs::msg::PoseStamped::SharedPtr msg_ptr);
+    void pub_gtpath(const geometry_msgs::msg::PoseStamped::SharedPtr msg_ptr);
 
     void ReinitService(const std::shared_ptr<rmw_request_id_t> request_header,
     const std::shared_ptr<example_interfaces::srv::AddTwoInts::Request> request,
@@ -64,7 +64,7 @@ private:
 
     /// Data subscribers.
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr pointcloud_sub_;
-    rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr gps_sub_;
+    rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr gt_sub_;
 
     /// Data publishers.
     rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_publisher_;
@@ -86,10 +86,18 @@ private:
     sage_icp::pipeline::sageConfig config_;
 
     /// Global/map coordinate frame.
+    std::string pc_topic_{"pointcloud"};
+    std::string base_frame_{"base_link"};
     std::string odom_frame_{"odom"};
-    std::string child_frame_{"base_link"};
-    std::string gps_topic_{"gps"};
-
+    std::string odom_topic_{"odometry"};
+    std::string trajectory_topic_{"trajectory"};
+    bool publish_frame_{false};
+    std::string frame_topic_{"frame"};
+    std::string local_map_topic_{"local_map"};
+    bool sub_ground_truth_{false};
+    std::string gt_topic_{"/ground_truth"};
+    std::string gt_trajectory_topic_{"gt_trajectory"};
+    std::map<int, int> color_list_;
 };
 
 }  // namespace sage_icp_ros

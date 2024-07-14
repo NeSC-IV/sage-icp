@@ -54,18 +54,26 @@ sageICP::Vector4dVectorTuple sageICP::RegisterFrame(const std::vector<Eigen::Vec
 sageICP::Vector4dVectorTuple sageICP::RegisterFrame(const std::vector<Eigen::Vector4d> &frame) {
     // Preprocess the input cloud
     auto preprocess_start = std::chrono::high_resolution_clock::now();
-    const auto &cropped_frame = Preprocess(frame, config_.max_range, config_.min_range, config_.dynamic_vehicle_filter, config_.dynamic_vehicle_filter_th);
+    const auto &cropped_frame = Preprocess(frame,
+                                        config_.max_range,
+                                        config_.min_range,
+                                        config_.label_max_range,
+                                        config_.dynamic_vehicle_filter,
+                                        config_.dynamic_vehicle_filter_th,
+                                        config_.voxel_labels[config_.dynamic_vehicle_voxid],
+                                        config_.dynamic_remove_lankmark
+                                        );
 
     // Voxelize
-    const auto &[source, frame_downsample] = Voxelize(cropped_frame);  // source为二次降采样的点云，frame_downsample为一次降采样的点云
+    const auto &[source, frame_downsample] = Voxelize(cropped_frame);  // source is double downsample pc，frame_downsample is single downsample pc
 
     // Get motion prediction and adaptive_threshold
     const double sigma = GetAdaptiveThreshold();
 
     // Compute initial_guess for ICP
-    const auto prediction = GetPredictionModel(); // 根据过去两帧之间的相对位姿
-    const auto last_pose = !poses_.empty() ? poses_.back() : Sophus::SE3d();  // 上一帧的位姿
-    const auto initial_guess = last_pose * prediction;  // 预测位姿
+    const auto prediction = GetPredictionModel(); // according to the last two poses to predict the current pose
+    const auto last_pose = !poses_.empty() ? poses_.back() : Sophus::SE3d();  // last pose
+    const auto initial_guess = last_pose * prediction;  // initial guess
 
     // Run icp
     auto start = std::chrono::high_resolution_clock::now();
@@ -80,71 +88,17 @@ sageICP::Vector4dVectorTuple sageICP::RegisterFrame(const std::vector<Eigen::Vec
     std::cout<<"ICP time: "<< elapsed.count()<<" s"<<std::endl;
     std::chrono::duration<double> elapsed_all = end - preprocess_start;
     std::cout<<"All time: "<< elapsed_all.count()<<" s"<<std::endl;
-    const auto model_deviation = initial_guess.inverse() * new_pose;  // 预测位姿与实际位姿的差值
+
+    const auto model_deviation = initial_guess.inverse() * new_pose;  // deviation between initial guess and new pose
     adaptive_threshold_.UpdateModelDeviation(model_deviation);
-    sem_map_.Update(frame_downsample, new_pose);  // 更新局部地图
-    poses_.push_back(new_pose);                    // 更新位姿
-    return {frame, elapsed.count(), elapsed_all.count()};
+    sem_map_.Update(frame_downsample, new_pose);  // update map
+    poses_.push_back(new_pose);                    // update poses
+    return {source, elapsed.count(), elapsed_all.count()};
 }
-
-void sageICP::lasermap_fov_segment(const Sophus::SE3d &new_pose){
-    cub_needrm.clear();
-    const Eigen::Vector3d &pos_LiD = new_pose.translation(); // 机器人在世界坐标系下的位置
-    if (!Globalmap_Initialized){
-        for (int i = 0; i < 3; i++){
-            LocalMap_Points.vertex_min[i] = static_cast<float>(pos_LiD(i)) - config_.MAP_RANGE / 2.0f;
-            LocalMap_Points.vertex_max[i] = static_cast<float>(pos_LiD(i)) + config_.MAP_RANGE / 2.0f;
-        }
-        Globalmap_Initialized = true;
-        return;
-    }
-    float dist_to_map_edge[3][2];
-    bool need_move = false;
-    for (int i = 0; i < 3; i++){
-        dist_to_map_edge[i][0] = fabs(static_cast<float>(pos_LiD(i)) - LocalMap_Points.vertex_min[i]);
-        dist_to_map_edge[i][1] = fabs(static_cast<float>(pos_LiD(i)) - LocalMap_Points.vertex_max[i]);
-        if (dist_to_map_edge[i][0] <= config_.MOV_THRESHOLD * static_cast<float>(config_.max_range) || dist_to_map_edge[i][1] <= config_.MOV_THRESHOLD * static_cast<float>(config_.max_range)) need_move = true;
-    }
-    // std::cout<<dist_to_map_edge<<endl;
-    if (!need_move) return;
-    std::cout<<"need move!"<<std::endl;
-    BoxPointType New_LocalMap_Points, tmp_boxpoints;
-    New_LocalMap_Points = LocalMap_Points;
-    float mov_dist = max((config_.MAP_RANGE - 2.0f * config_.MOV_THRESHOLD * static_cast<float>(config_.max_range)) * 0.5f * 0.9f, float(static_cast<float>(config_.max_range) * (config_.MOV_THRESHOLD -1)));
-    // float mov_dist = max((config_.MAP_RANGE - config_.MOV_THRESHOLD * config_.max_range) * 0.5f * 0.9f, float(config_.max_range * (config_.MOV_THRESHOLD -1)));
-    for (int i = 0; i < 3; i++){
-        tmp_boxpoints = LocalMap_Points;
-        if (dist_to_map_edge[i][0] <= config_.MOV_THRESHOLD * static_cast<float>(config_.max_range)){
-            New_LocalMap_Points.vertex_max[i] -= mov_dist;
-            New_LocalMap_Points.vertex_min[i] -= mov_dist;
-            tmp_boxpoints.vertex_min[i] = LocalMap_Points.vertex_max[i] - mov_dist;
-            cub_needrm.push_back(tmp_boxpoints);
-        } else if (dist_to_map_edge[i][1] <= config_.MOV_THRESHOLD * static_cast<float>(config_.max_range)){
-            New_LocalMap_Points.vertex_max[i] += mov_dist;
-            New_LocalMap_Points.vertex_min[i] += mov_dist;
-            tmp_boxpoints.vertex_max[i] = LocalMap_Points.vertex_min[i] + mov_dist;
-            cub_needrm.push_back(tmp_boxpoints);
-        }
-    }
-    LocalMap_Points = New_LocalMap_Points;
-
-    // points_cache_collect();
-    // double delete_begin = omp_get_wtime();
-    if(cub_needrm.size() > 0) {
-        local_map_.Delete_Point_Boxes(cub_needrm);
-        ground_map_.Delete_Point_Boxes(cub_needrm); 
-        //kdtree_delete_counter = ikdtree.Delete_Point_Boxes(cub_needrm);
-    }
-    // kdtree_delete_time = omp_get_wtime() - delete_begin;
-}
-
 
 sageICP::Vector4dVectorTuple2 sageICP::Voxelize(const std::vector<Eigen::Vector4d> &frame) const {
-    // const auto voxel_size = config_.voxel_size_map;
-    const auto frame_downsample = sage_icp::VoxelDownsample(frame, config_.voxel_size_road * 0.5, config_.voxel_size_building * 0.5, config_.voxel_size_plant * 0.5,
-                                                     config_.voxel_size_object * 0.5, config_.voxel_size_unlabel * 0.5, config_.voxel_size_vehicle * 0.5);
-    const auto source = sage_icp::VoxelDownsample(frame_downsample, config_.voxel_size_road * 1.5, config_.voxel_size_building * 1.5, config_.voxel_size_plant * 1.5,
-                                                     config_.voxel_size_object * 1.5, config_.voxel_size_unlabel * 1.5, config_.voxel_size_vehicle * 1.5);
+    const auto frame_downsample = sage_icp::VoxelDownsample(frame, config_.voxel_labels, config_.voxel_size, 0.5);
+    const auto source = sage_icp::VoxelDownsample(frame_downsample, config_.voxel_labels, config_.voxel_size, 1.5);
     return {source, frame_downsample};
 }
 

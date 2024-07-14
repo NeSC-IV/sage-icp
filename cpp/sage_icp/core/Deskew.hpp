@@ -26,7 +26,6 @@
 #include <vector>
 // #include <pcl/point_types.h>
 // #include <pcl/point_cloud.h>
-#include "ikd_Tree.h"
 namespace sage_icp {
 
 /// Compensate the frame by estimatng the velocity between the given poses

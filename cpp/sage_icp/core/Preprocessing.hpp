@@ -29,16 +29,21 @@
 #include <pcl/point_cloud.h>
 #include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/segmentation/extract_clusters.h>
-#include "ikd_Tree.h"
 
 namespace sage_icp {
 
 /// Voxelize point cloud keeping the original coordinates
-std::vector<Eigen::Vector4d> VoxelDownsample(const std::vector<Eigen::Vector4d> &frame, double voxel_size_road, double voxel_size_building, double voxel_size_plant,
-                                                     double voxel_size_object, double voxel_size_unlabel, double voxel_size_vehicle);
+std::vector<Eigen::Vector4d> VoxelDownsample(const std::vector<Eigen::Vector4d> &frame,
+                                            const std::vector<std::vector<int>> &voxel_labels,
+                                            const std::vector<double> &voxel_size,
+                                            double vox_scale
+                                            );
 std::vector<Eigen::Vector4d> Preprocess(const std::vector<Eigen::Vector4d> &frame,
                                         double max_range,
                                         double min_range,
+                                        double label_max_range,
                                         bool dynamic_vehicle_filter,
-                                        double dy_th);
+                                        double dy_th,
+                                        const std::vector<int> &dynamic_labels,
+                                        const std::vector<int> &lankmark);
 }  // namespace sage_icp

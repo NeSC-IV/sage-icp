@@ -39,13 +39,15 @@ struct VoxelHashMap {
     struct VoxelBlock {
         // buffer of points with a max limit of n_points
         std::vector<Eigen::Vector4d> points;
-        int num_points_;
+        int basic_part_;
+        int critical_part_;
+        std::vector<int> basic_parts_labels_;
         inline void AddPoint(const Eigen::Vector4d &point) {
-            if (points.size() < static_cast<size_t>(num_points_)) points.emplace_back(point);
+            if (points.size() < static_cast<size_t>(basic_part_)) points.emplace_back(point);
             else{
-                if(static_cast<int>(point[3]) == 0) ;
-                else if ((static_cast<int>(point[3]) > 39 && static_cast<int>(point[3]) < 51)
-                || static_cast<int>(point[3]) == 70 || static_cast<int>(point[3]) == 72)
+                int label = static_cast<int>(point[3]);
+                if(label == 0);
+                else if (std::find(basic_parts_labels_.begin(), basic_parts_labels_.end(), label) != basic_parts_labels_.end())
                 {
                     for (auto &p : points) {
                         if (static_cast<int>(p[3]) == 0) {
@@ -55,7 +57,7 @@ struct VoxelHashMap {
                     }
                 }
                 else{
-                    if (points.size() < 2 * static_cast<size_t>(num_points_)) points.emplace_back(point);
+                    if (points.size() < static_cast<size_t>(basic_part_+critical_part_)) points.emplace_back(point);
                     else
                         for (auto &p : points) {
                             if (static_cast<int>(p[3]) == 0) {
@@ -74,10 +76,16 @@ struct VoxelHashMap {
         }
     };
 
-    explicit VoxelHashMap(double voxel_size, double max_distance, int max_points_per_voxel)
+    explicit VoxelHashMap(double voxel_size,
+                        double max_distance,
+                        int basic_points_per_voxel,
+                        int critical_points_per_voxel, 
+                        std::vector<int> basic_parts_labels)
         : voxel_size_(voxel_size),
           max_distance_(max_distance),
-          max_points_per_voxel_(max_points_per_voxel) {}
+          basic_points_per_voxel_(basic_points_per_voxel),
+          critical_points_per_voxel_{critical_points_per_voxel},
+          basic_parts_labels_{basic_parts_labels} {}
 
     Vector4dVectorTuple GetCorrespondences(const Vector4dVector &points,
                                            double max_correspondance_distance,
@@ -92,7 +100,9 @@ struct VoxelHashMap {
 
     double voxel_size_;
     double max_distance_;
-    int max_points_per_voxel_;
+    int basic_points_per_voxel_;
+    int critical_points_per_voxel_;
+    std::vector<int> basic_parts_labels_;
     tsl::robin_map<Voxel, VoxelBlock, VoxelHash> map_;
 };
 }  // namespace sage_icp

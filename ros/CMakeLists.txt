@@ -56,7 +56,7 @@ elseif("$ENV{ROS_VERSION}" STREQUAL "2")
   find_package(example_interfaces REQUIRED)
 
   # ROS2 node
-  add_executable(odometry_node ros2/OdometryServer.cpp ../cpp/sage_icp/core/ikd_Tree.cpp)
+  add_executable(odometry_node ros2/OdometryServer.cpp)
   target_include_directories(odometry_node PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
   target_link_libraries(odometry_node sage_icp::pipeline)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -msse3 -std=c++17") # debug

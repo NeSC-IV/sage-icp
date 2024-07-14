@@ -31,22 +31,17 @@
 #include "sensor_msgs/msg/point_cloud2.hpp"
 #include "sensor_msgs/point_cloud2_iterator.hpp"
 #include "sensor_msgs/msg/point_field.hpp"
+#include <sstream>
 
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
-// #include <pcl/visualization/pcl_visualizer.h>
-// #include <pcl/surface/concave_hull.h>
-// #include <pcl/kdtree/kdtree_flann.h>
-// #include <pcl/filters/uniform_sampling.h>
-// #include <pcl/filters/approximate_voxel_grid.h>
+
 #include <iostream>
 #include <boost/thread/thread.hpp>
 // #include <pcl/range_image/range_image.h>
 #include <pcl/io/pcd_io.h>
 #include <omp.h>
 #include <map>
-
-#include "sage_icp/core/ikd_Tree.h"
 
 namespace sage_icp_ros::utils {
 
@@ -56,44 +51,6 @@ using Header = std_msgs::msg::Header;
 std::string FixFrameId(const std::string &frame_id) {
     return std::regex_replace(frame_id, std::regex("^/"), "");
 }
-
-std::map<int, int> label_color = {
-                   { 0, 0x000000},
-                   { 1, 0xff0000},
-                   { 10, 0x6496f5},
-                   { 11, 0x64e6f5},
-                   { 13, 0x6450fa},
-                   { 15, 0x1e3c96},
-                   { 16, 0x0000ff},
-                   { 18, 0x501eb4},
-                   { 20, 0x0000ff},
-                   { 30, 0xff1e1e},
-                   { 31, 0xff28c8},
-                   { 32, 0x961e5a},
-                   { 40, 0xff00ff},
-                   { 44, 0xff96ff},
-                   { 48, 0x4b004b},
-                   { 49, 0xaf004b},
-                   { 50, 0xffc800},
-                   { 51, 0xff7832},
-                   { 52, 0xff9600},
-                   { 60, 0x96ffaa},
-                   { 70, 0x00af00},
-                   { 71, 0x873c00},
-                   { 72, 0x96f050},
-                   { 80, 0xfff096},
-                   { 81, 0xff0000},
-                   { 99, 0x32ffff},
-                    {252, 0x6496f5},
-                    {253, 0xff28c8},
-                    {254, 0xff1e1e},
-                    {255, 0x961e5a},
-                    {256, 0x0000ff},
-                    {257, 0x6450fa},
-                    {258, 0x501eb4},
-                    {259, 0x0000ff}
-                };
-
 
 auto GetTimestampField(const PointCloud2 &msg) {
     PointField timestamp_field;
@@ -171,7 +128,7 @@ auto CreatePointCloud2Msg(const size_t n_points, const Header &header, bool time
     return cloud_msg;
 }
 
-void FillPointCloud2XYZlRGB(const std::vector<Eigen::Vector4d> &points, PointCloud2 &msg) {
+void FillPointCloud2XYZlRGB(const std::vector<Eigen::Vector4d> &points, const std::map<int, int> &color_list, PointCloud2 &msg) {
     sensor_msgs::PointCloud2Iterator<float> msg_x(msg, "x");
     sensor_msgs::PointCloud2Iterator<float> msg_y(msg, "y");
     sensor_msgs::PointCloud2Iterator<float> msg_z(msg, "z");
@@ -183,7 +140,7 @@ void FillPointCloud2XYZlRGB(const std::vector<Eigen::Vector4d> &points, PointClo
         *msg_y = point.y();
         *msg_z = point.z();
         *msg_label = point.w();
-        *msg_rgb = label_color[int(point.w())];
+        *msg_rgb = color_list.at(static_cast<int>(point.w()));
     }
 }
 
@@ -224,19 +181,57 @@ std::vector<Eigen::Vector4d> PointCloud2ToEigen(const PointCloud2 &msg) {
     return points;
 }
 
-PointCloud2 EigenToPointCloud2(const std::vector<Eigen::Vector4d> &points, const Header &header) {
+PointCloud2 EigenToPointCloud2(const std::vector<Eigen::Vector4d> &points,
+                                const Header &header,
+                                const std::map<int, int> &color_list) {
     PointCloud2 msg = CreatePointCloud2Msg(points.size(), header);
-    FillPointCloud2XYZlRGB(points, msg);
+    FillPointCloud2XYZlRGB(points, color_list, msg);
     return msg;
 }
 
 PointCloud2 EigenToPointCloud2(const std::vector<Eigen::Vector4d> &points,
-                               const std::vector<double> &timestamps,
-                               const Header &header) {
+                                const Header &header,
+                                const std::map<int, int> &color_list,
+                                const std::vector<double> &timestamps) {
     PointCloud2 msg = CreatePointCloud2Msg(points.size(), header, true);
-    FillPointCloud2XYZlRGB(points, msg);
+    FillPointCloud2XYZlRGB(points, color_list, msg);
     FillPointCloud2Timestamp(timestamps, msg);
     return msg;
+}
+
+std::vector<std::vector<int>> unpack_2d_array(const std::string& packed_str) {
+    std::vector<std::vector<int>> result;
+    std::stringstream ss(packed_str);
+    std::string row_str;
+    
+    while (std::getline(ss, row_str, ';')) {
+        std::vector<int> row;
+        std::stringstream row_ss(row_str);
+        std::string value_str;
+        
+        while (std::getline(row_ss, value_str, ',')) {
+            row.push_back(std::stof(value_str));
+        }
+        
+        result.push_back(row);
+    }
+    
+    return result;
+}
+
+std::map<int, int> unpack_dict(const std::string& mapAsString) {
+    std::map<int, int> result;
+    std::stringstream ss(mapAsString);
+    std::string item;
+    while (std::getline(ss, item, ';')) {
+        size_t pos = item.find(",");
+        if (pos != std::string::npos) {
+            int key = std::stoi(item.substr(0, pos));
+            int value = std::stoi(item.substr(pos + 1));
+            result[key] = value;
+        }
+    }
+    return result;
 }
 
 

@@ -64,14 +64,13 @@ VoxelHashMap::Vector4dVectorTuple VoxelHashMap::GetCorrespondences(
 
         using Vector4dVector = std::vector<Eigen::Vector4d>;
         Vector4dVector neighboors;
-        neighboors.reserve(27 * max_points_per_voxel_);
+        neighboors.reserve(27 * (basic_points_per_voxel_ + critical_points_per_voxel_));
         std::for_each(voxels.cbegin(), voxels.cend(), [&](const auto &voxel) {
             auto search = map_.find(voxel);
             if (search != map_.end()) {
                 const auto &points = search->second.points;
                 if (!points.empty()) {
                     for (const auto &pointn : points) {
-                        // if(static_cast<int>(pointn[3]) == static_cast<int>(point[3]) || static_cast<int>(pointn[3] * point[3]) == 0)
                         neighboors.emplace_back(pointn);
                     }
                 }
@@ -132,7 +131,7 @@ VoxelHashMap::Vector4dVectorTuple VoxelHashMap::GetCorrespondences(
 
 std::vector<Eigen::Vector4d> VoxelHashMap::Pointcloud() const {
     std::vector<Eigen::Vector4d> points;
-    points.reserve(max_points_per_voxel_ * map_.size());
+    points.reserve((basic_points_per_voxel_+critical_points_per_voxel_) * map_.size());
     for (const auto &[voxel, voxel_block] : map_) {
         (void)voxel;
         for (const auto &point : voxel_block.points) {
@@ -154,8 +153,6 @@ void VoxelHashMap::Update(const Vector4dVector &points, const Sophus::SE3d &pose
                     Eigen::Vector3d v3point(point[0], point[1], point[2]);
                     Eigen::Vector3d transformed_v3point = pose * v3point;
                     Eigen::Vector4d v4point(transformed_v3point[0], transformed_v3point[1], transformed_v3point[2], point[3]);
-                    // Eigen::Vector4d v4point;
-                    // v4point << pose * v3point, point[3];
                     return v4point;
                     });
     const Eigen::Vector3d &origin = pose.translation();
@@ -171,7 +168,7 @@ void VoxelHashMap::AddPoints(const std::vector<Eigen::Vector4d> &points) {
             auto &voxel_block = search.value();
             voxel_block.AddPoint(point);
         } else {
-            map_.insert({voxel, VoxelBlock{{point}, max_points_per_voxel_}});
+            map_.insert({voxel, VoxelBlock{{point}, basic_points_per_voxel_, critical_points_per_voxel_, basic_parts_labels_}});
         }
     });
 }

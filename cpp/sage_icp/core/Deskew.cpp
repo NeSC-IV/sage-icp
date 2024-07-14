@@ -44,8 +44,6 @@ std::vector<Eigen::Vector4d> DeSkewScan(const std::vector<Eigen::Vector4d> &fram
         Eigen::Vector3d v3point(frame[i][0], frame[i][1], frame[i][2]);
         Eigen::Vector3d transformed_v3point = motion * v3point;
         Eigen::Vector4d v4point(transformed_v3point[0], transformed_v3point[1], transformed_v3point[2], frame[i][3]);
-        // Eigen::Vector4d v4point; 
-        // v4point << motion * v3point, frame[i][3];
         corrected_frame[i] = v4point;
     });
     return corrected_frame;
