@@ -19,30 +19,42 @@
 <hr />
 
 ## Prerequisites
-1. Ubuntu 20.04 (tested) or 22.04  
+1. Ubuntu 20.04 (tested) or 22.04 or 24.04 (tested)
 2. [ROS2 Humble](https://docs.ros.org/en/humble/Installation.html)  
+   [ROS2 Jazzy](https://docs.ros.org/en/jazzy/Installation.html)
 > **Note**
 >
 > Debian packages for ROS 2 Humble Hawksbill are currently available for Ubuntu Jammy (22.04).  
-> Source installation is available for Ubuntu Focal (20.04).  
+> Debian packages for ROS 2 Jazzy Jellyfish are currently available for Ubuntu Noble (24.04).
 
-3. [Cylinder3D](https://github.com/NeSC-IV/cylinder3d_ros2), [RangeNet++](https://github.com/NeSC-IV/RangeNetTrt8)  
-Semantic segmentation models for LiDAR point clouds, could select one installation.
+~~3. [Cylinder3D](https://github.com/NeSC-IV/cylinder3d_ros2), [RangeNet++](https://github.com/NeSC-IV/RangeNetTrt8)  
+Semantic segmentation models for LiDAR point clouds, could select one installation.~~
+
+4. Something may be needed:
+```sh
+sudo apt-get install ros-<ros_distro>-tf-transformations
+pip install transforms3d kiss-icp lark-parser
+```
 
 ## Install
 ```sh
 mkdir -p ~/sage-icp/src && cd ~/sage-icp/src
-git clone https://github.com/NeSC-IV/sage-icp.git
+git clone -b livox http://gitlab.hzbz.edu.eu.org/zju/yuyi/semantic_icp.git
 cd .. && colcon build --symlink-install
 ```
 
 ## Evaluation
-To evaluate cylinder3D on KITTI Odometry, please run:
+To evaluate on LIVOX Odometry, please run:
+```sh
+source install/setup.bash
+ros2 launch sage_icp odometry_livox.launch.py
+```
+~~To evaluate cylinder3D on KITTI Odometry, please run:~~
 ```sh
 source install/setup.bash
 ros2 launch sage_icp sem_odom.launch.py
 ```
-To evaluate RangeNet++ on KITTI Odometry, please run:
+~~To evaluate RangeNet++ on KITTI Odometry, please run:~~
 ```sh
 source install/setup.bash
 ros2 launch sage_icp range_odom.launch.py
