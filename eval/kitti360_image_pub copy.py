@@ -64,7 +64,6 @@ import rosbag2_py
 import sys
 sys.dont_write_bytecode = True
 import math
-import utils #import utils.py
 from numpy.linalg import inv
 import tf_transformations
 import cv2

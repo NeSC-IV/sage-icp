@@ -22,7 +22,6 @@ import rosbag2_py
 import sys
 sys.dont_write_bytecode = True
 import math
-import utils #import utils.py
 from numpy.linalg import inv
 import tf_transformations
 import cv2
@@ -134,7 +133,20 @@ def inv_t(transform):
 
     return transform_inv
 
-def get_velo_data_with_label(kitti, velo_frame_id, iter):
+def convertdata(labelscan, color_map_bgr):
+    labels = []
+    rgbs = []
+
+    for counting in range(len(labelscan)):
+        sem_id = int(labelscan[counting]) & 0xFFFF
+        bgr = color_map_bgr[sem_id]
+        rgb = (int(bgr[2]) << 16) | (int(bgr[1]) << 8) | int(bgr[0])
+        labels.append(sem_id)
+        rgbs.append(rgb)
+
+    return np.array(labels, dtype=np.uint8), np.array(rgbs, dtype=np.uint32)
+
+def get_velo_data_with_label(kitti, velo_frame_id, iter, color_map_bgr):
     velo_data_dir = os.path.join(kitti.data_path, 'velodyne')
     velo_filenames = sorted(os.listdir(velo_data_dir))
 
@@ -146,27 +158,29 @@ def get_velo_data_with_label(kitti, velo_frame_id, iter):
     veloname = velo_filenames[iter]
     labelname = label_filenames[iter]
 
-    # if dt is None:
-    #     continue
-
     velo_filename = os.path.join(velo_data_dir, veloname)
     label_filename = os.path.join(label_data_dir, labelname)
 
     veloscan = (np.fromfile(velo_filename, dtype=np.float32)).reshape(-1, 4)
-    veloscan3 = veloscan[:, :3].astype(np.float64)
-    # points = np.fromfile(scan_file, dtype=np.float32).reshape((-1, 4))[:, :3].astype(np.float64)
-    points = kitti.correct_kitti_scan(veloscan3)
-    veloscan[:, :3] = points
+    veloscan3 = veloscan[:, :3].astype(np.float32)
+    veloscan3 = kitti.correct_kitti_scan(veloscan3).astype(np.float32)
     
     labelscan = (np.fromfile(label_filename, dtype=np.int32)).reshape(-1,1)
     
-    labeldata = utils.LabelDataConverter(labelscan)
+    labels, rgbs = convertdata(labelscan, color_map_bgr)
     
-    scan = []
-
-    for t in range(len(labeldata.rgb_id)):
-        point = [veloscan[t][0], veloscan[t][1], veloscan[t][2], veloscan[t][3], labeldata.rgb_id[t], labeldata.semantic_id[t]]
-        scan.append(point)
+    scan = np.zeros((veloscan3.shape[0],), dtype=[
+                    ('x', np.float32),
+                    ('y', np.float32),
+                    ('z', np.float32),
+                    ('label', np.uint8),
+                    ('rgb', np.uint32),
+            ])
+    scan['x'] = veloscan3[:,0]
+    scan['y'] = veloscan3[:,1]
+    scan['z'] = veloscan3[:,2]
+    scan['label'] = labels
+    scan['rgb'] = rgbs
 
     header = Header()
     header.frame_id = velo_frame_id
@@ -176,9 +190,9 @@ def get_velo_data_with_label(kitti, velo_frame_id, iter):
     fields =[PointField(name='x',  offset=0, datatype=PointField.FLOAT32, count = 1),
             PointField(name='y',  offset=4, datatype=PointField.FLOAT32, count = 1),
             PointField(name='z',  offset=8, datatype=PointField.FLOAT32, count = 1),
-            PointField(name='intensity',  offset=12, datatype=PointField.FLOAT32, count = 1),
-            PointField(name='rgb',  offset=16, datatype=PointField.FLOAT32, count = 1),
-            PointField(name='label',  offset=20, datatype=PointField.FLOAT32, count = 1)]
+            PointField(name='label', offset=12, datatype=PointField.UINT8, count = 1),
+            PointField(name='rgb', offset=13, datatype=PointField.UINT32, count = 1),
+            ]
 
     pcl_msg = pcl2.create_cloud(header, fields, scan)
     return pcl_msg

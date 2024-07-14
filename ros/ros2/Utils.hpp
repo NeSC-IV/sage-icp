@@ -167,7 +167,7 @@ std::vector<Eigen::Vector4d> PointCloud2ToEigen(const PointCloud2 &msg) {
     sensor_msgs::PointCloud2ConstIterator<float> msg_y(msg, "y");
     sensor_msgs::PointCloud2ConstIterator<float> msg_z(msg, "z");
     if (msg.fields.size() == 5){
-        sensor_msgs::PointCloud2ConstIterator<uint32_t> msg_l(msg, "label");
+        sensor_msgs::PointCloud2ConstIterator<uint8_t> msg_l(msg, "label");
         for (size_t i = 0; i < msg.height * msg.width; ++i, ++msg_x, ++msg_y, ++msg_z, ++msg_l) {
             points.emplace_back(*msg_x, *msg_y, *msg_z, *msg_l);
         }

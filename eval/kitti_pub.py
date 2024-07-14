@@ -10,11 +10,6 @@ from sensor_msgs.msg import PointCloud2, Imu, NavSatFix, CameraInfo, PointField
 from std_msgs.msg import Header
 from ament_index_python import get_package_share_directory,get_package_prefix
 import time
-import open3d as o3d
-from std_srvs.srv import Empty
-from rclpy.duration import Duration
-from rclpy.serialization import serialize_message
-from example_interfaces.msg import Int32
 import rclpy
 from rclpy.time import Time
 
@@ -22,16 +17,12 @@ import rosbag2_py
 import sys
 sys.dont_write_bytecode = True
 import math
-import utils #import utils.py
 from numpy.linalg import inv
 import tf_transformations
-import cv2
-# from cv_bridge import CvBridge
-# import progressbar
 from tf2_msgs.msg import TFMessage
 from datetime import datetime
 from std_msgs.msg import Header
-from sensor_msgs_py import point_cloud2 as pcl2 # point_cloud2.create_cloud() 函数是sensor_msgs.msg.PointCloud2消息的一个帮助函数，它将一系列点的x、y、z坐标和其他属性打包到点云消息中。
+from sensor_msgs_py import point_cloud2 as pcl2
 from geometry_msgs.msg import TransformStamped, TwistStamped, Transform, PoseStamped
 from nav_msgs.msg import Odometry
 import numpy as np
@@ -39,6 +30,7 @@ import glob
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from example_interfaces.srv import AddTwoInts
+import yaml
 
 class SemanticKitti_Raw:
     """Load and parse raw data into a usable format"""
@@ -153,7 +145,20 @@ def inv_t(transform):
 
     return transform_inv
 
-def get_velo_data_with_label(kitti, velo_frame_id, iter):
+def convertdata(labelscan, color_map_bgr):
+    labels = []
+    rgbs = []
+
+    for counting in range(len(labelscan)):
+        sem_id = int(labelscan[counting]) & 0xFFFF
+        bgr = color_map_bgr[sem_id]
+        rgb = (int(bgr[2]) << 16) | (int(bgr[1]) << 8) | int(bgr[0])
+        labels.append(sem_id)
+        rgbs.append(rgb)
+
+    return np.array(labels, dtype=np.uint8), np.array(rgbs, dtype=np.uint32)
+
+def get_velo_data_with_label(kitti, velo_frame_id, iter, color_map_bgr):
     velo_data_dir = os.path.join(kitti.data_path, 'velodyne')
     velo_filenames = sorted(os.listdir(velo_data_dir))
 
@@ -165,27 +170,29 @@ def get_velo_data_with_label(kitti, velo_frame_id, iter):
     veloname = velo_filenames[iter]
     labelname = label_filenames[iter]
 
-    # if dt is None:
-    #     continue
-
     velo_filename = os.path.join(velo_data_dir, veloname)
     label_filename = os.path.join(label_data_dir, labelname)
 
     veloscan = (np.fromfile(velo_filename, dtype=np.float32)).reshape(-1, 4)
-    veloscan3 = veloscan[:, :3].astype(np.float64)
-    # points = np.fromfile(scan_file, dtype=np.float32).reshape((-1, 4))[:, :3].astype(np.float64)
-    points = kitti.correct_kitti_scan(veloscan3)
-    veloscan[:, :3] = points
+    veloscan3 = veloscan[:, :3].astype(np.float32)
+    veloscan3 = kitti.correct_kitti_scan(veloscan3).astype(np.float32)
     
     labelscan = (np.fromfile(label_filename, dtype=np.int32)).reshape(-1,1)
     
-    labeldata = utils.LabelDataConverter(labelscan)
+    labels, rgbs = convertdata(labelscan, color_map_bgr)
     
-    scan = []
-
-    for t in range(len(labeldata.rgb_id)):
-        point = [veloscan[t][0], veloscan[t][1], veloscan[t][2], veloscan[t][3], labeldata.rgb_id[t], labeldata.semantic_id[t]]
-        scan.append(point)
+    scan = np.zeros((veloscan3.shape[0],), dtype=[
+                    ('x', np.float32),
+                    ('y', np.float32),
+                    ('z', np.float32),
+                    ('label', np.uint8),
+                    ('rgb', np.uint32),
+            ])
+    scan['x'] = veloscan3[:,0]
+    scan['y'] = veloscan3[:,1]
+    scan['z'] = veloscan3[:,2]
+    scan['label'] = labels
+    scan['rgb'] = rgbs
 
     header = Header()
     header.frame_id = velo_frame_id
@@ -195,9 +202,9 @@ def get_velo_data_with_label(kitti, velo_frame_id, iter):
     fields =[PointField(name='x',  offset=0, datatype=PointField.FLOAT32, count = 1),
             PointField(name='y',  offset=4, datatype=PointField.FLOAT32, count = 1),
             PointField(name='z',  offset=8, datatype=PointField.FLOAT32, count = 1),
-            PointField(name='intensity',  offset=12, datatype=PointField.FLOAT32, count = 1),
-            PointField(name='rgb',  offset=16, datatype=PointField.FLOAT32, count = 1),
-            PointField(name='label',  offset=20, datatype=PointField.FLOAT32, count = 1)]
+            PointField(name='label', offset=12, datatype=PointField.UINT8, count = 1),
+            PointField(name='rgb', offset=13, datatype=PointField.UINT32, count = 1),
+            ]
 
     pcl_msg = pcl2.create_cloud(header, fields, scan)
     return pcl_msg
@@ -355,8 +362,8 @@ class Listener(Node):
             print('Dataset is empty? Check your semantickitti dataset file')
             sys.exit(1)
         
-        self.world_frame_id = 'map'
-        self.velo_frame_id = 'velodyne'
+        self.world_frame_id = 'odom'
+        self.velo_frame_id = 'lidar'
         calibration = read_calib_file(os.path.join(self.kitti.data_path, 'calib.txt'))
         ground_truth_file_name = "{}.txt".format(self.sequence_number)
         self.ground_truth = read_poses_file(os.path.join(self.kitti.data_path, ground_truth_file_name), calibration)
@@ -383,6 +390,12 @@ class Listener(Node):
         self.timer = self.create_timer(timer_period,self.timer_callback) #创建定时器
         self.get_logger().info("Publisher is started, publishing kitti %s to %s" % (seq,"/velodyne_points"))
         self.pbar = tqdm(total=self.lenth)
+
+        current_pkg_path_str = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+        label_mapping = os.path.join(current_pkg_path_str, "ros", "launch", "semantic-kitti.yaml")
+        with open(label_mapping, 'r') as stream:
+            semkittiyaml = yaml.safe_load(stream)
+        self.color_map_bgr = semkittiyaml['color_map']
 
     def send_request(self, a, b):
         self.req.a = a
@@ -438,7 +451,7 @@ class Listener(Node):
                 raise SystemExit           # <--- here is we exit the node
             pose = get_pose_msg(self.kitti, self.ground_truth, self.world_frame_id, self.iter) # posestamped: ground_truth to map, odom: ground_truth to map
             if self.scanlabel_bool == 1:
-                label_pointcloud = get_velo_data_with_label(self.kitti, self.velo_frame_id, self.iter)
+                label_pointcloud = get_velo_data_with_label(self.kitti, self.velo_frame_id, self.iter, self.color_map_bgr)
                 self.label_lidar_pub.publish(label_pointcloud)
             
             pointcloud = get_velo_data(self.kitti, self.velo_frame_id, self.iter)
