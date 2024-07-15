@@ -32,14 +32,6 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../cpp/sage_icp/)
   add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../cpp/sage_icp ${CMAKE_CURRENT_BINARY_DIR}/sage_icp)
 else()
   message(FATAL_ERROR "SAGE-ICP not found, please clone the repository with --recursive flag")
-  # cmake_minimum_required(VERSION 3.18)
-  # message(STATUS "Performing out-of-tree build, fetching KISS-ICP v${CMAKE_PROJECT_VERSION} Release from Github")
-  # include(FetchContent)
-  # FetchContent_Declare(
-  #   ext_kiss_icp_core PREFIX kiss_icp_core
-  #   URL https://github.com/PRBonn/kiss-icp/archive/refs/tags/v${CMAKE_PROJECT_VERSION}.tar.gz SOURCE_SUBDIR
-  #       cpp/sage_icp)
-  # FetchContent_MakeAvailable(ext_kiss_icp_core)
 endif()
 
 if("$ENV{ROS_VERSION}" STREQUAL "1")
@@ -52,6 +44,7 @@ elseif("$ENV{ROS_VERSION}" STREQUAL "2")
   find_package(nav_msgs REQUIRED)
   find_package(rclcpp REQUIRED)
   find_package(sensor_msgs REQUIRED)
+  find_package(visualization_msgs REQUIRED)
   find_package(tf2_ros REQUIRED)
   find_package(example_interfaces REQUIRED)
 
@@ -62,7 +55,7 @@ elseif("$ENV{ROS_VERSION}" STREQUAL "2")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -msse3 -std=c++17") # debug
   install(TARGETS odometry_node RUNTIME DESTINATION lib/${PROJECT_NAME})
   install(DIRECTORY launch rviz DESTINATION share/${PROJECT_NAME}/)
-  ament_target_dependencies(odometry_node rclcpp nav_msgs sensor_msgs tf2_ros example_interfaces)
+  ament_target_dependencies(odometry_node rclcpp nav_msgs sensor_msgs visualization_msgs tf2_ros example_interfaces)
   ament_package()
 else()
   message(FATAL_ERROR "catkin or colcon not found SAGE-ICP-ROS disabled")

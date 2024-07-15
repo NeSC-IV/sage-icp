@@ -79,6 +79,15 @@ class Basic_config():
             rgb = (int(r) << 16) | (int(g) << 8) | int(b)
             self.color_list.append([key,rgb])
         self.color_list_str: str = self.pack_2d_array(self.color_list)
+        
+        # Key Frames extract
+        self.publish_key_frame: bool = False # publish key frame
+        self.key_frame_topic: str = "/sage_icp/key_frame"
+        self.key_marker_topic: str = "/sage_icp/key_marker"
+        self.key_frame_overlap: float = 0.5 # map sample overlap
+        self.key_frame_bounds: list = [[-51.2, 51.2], [-51.2, 51.2], [-4, 2.4]] # Point Cloud Boundaries, used for generate occupancy map
+        self.key_frame_bounds_str: str = self.pack_2d_array(self.key_frame_bounds)
+        self.key_frame_occ_size: list = [128, 128] # H*W, occ resolution
 
         # RVIZ2 and ROS2 bag play
         self.visualize: str = "true" # must be string
@@ -130,6 +139,12 @@ def generate_launch_description():
                             "initial_threshold": sage_icp_config.initial_threshold,
                             "min_motion_th": sage_icp_config.min_motion_th,
                             "color_list_str": sage_icp_config.color_list_str,
+                            "publish_key_frame": sage_icp_config.publish_key_frame,
+                            "key_frame_topic": sage_icp_config.key_frame_topic,
+                            "key_marker_topic": sage_icp_config.key_marker_topic,
+                            "key_frame_overlap": sage_icp_config.key_frame_overlap,
+                            "key_frame_bounds_str": sage_icp_config.key_frame_bounds_str,
+                            "key_frame_occ_size": sage_icp_config.key_frame_occ_size,
                         }
                     ],
                 )
