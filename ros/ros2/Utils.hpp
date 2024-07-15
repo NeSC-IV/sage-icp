@@ -32,13 +32,12 @@
 #include "sensor_msgs/point_cloud2_iterator.hpp"
 #include "sensor_msgs/msg/point_field.hpp"
 #include <sstream>
-
+#include "visualization_msgs/msg/marker.hpp"
+#include "nav_msgs/msg/odometry.hpp"
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
-
 #include <iostream>
 #include <boost/thread/thread.hpp>
-// #include <pcl/range_image/range_image.h>
 #include <pcl/io/pcd_io.h>
 #include <omp.h>
 #include <map>
@@ -48,6 +47,7 @@ namespace sage_icp_ros::utils {
 using PointCloud2 = sensor_msgs::msg::PointCloud2;
 using PointField = sensor_msgs::msg::PointField;
 using Header = std_msgs::msg::Header;
+using Marker = visualization_msgs::msg::Marker;
 std::string FixFrameId(const std::string &frame_id) {
     return std::regex_replace(frame_id, std::regex("^/"), "");
 }
@@ -158,8 +158,6 @@ std::vector<double> GetTimestamps(const PointCloud2 &msg) {
     return timestamps;
 }
 
-
-
 std::vector<Eigen::Vector4d> PointCloud2ToEigen(const PointCloud2 &msg) {
     std::vector<Eigen::Vector4d> points;
     points.reserve(msg.height * msg.width);
@@ -199,13 +197,93 @@ PointCloud2 EigenToPointCloud2(const std::vector<Eigen::Vector4d> &points,
     return msg;
 }
 
-std::vector<std::vector<int>> unpack_2d_array(const std::string& packed_str) {
+Marker OdomToMarker(const nav_msgs::msg::Odometry &odom_msg,
+                    const std::string &key_frame_topic,
+                    int &last_marker_id){
+    Marker marker;
+    marker.header = odom_msg.header;
+    marker.ns = key_frame_topic;
+    marker.id = last_marker_id++;
+    marker.type = Marker::SPHERE;
+    marker.action = Marker::ADD;
+    marker.pose = odom_msg.pose.pose;
+    marker.scale.x = 0.5;
+    marker.scale.y = 0.5;
+    marker.scale.z = 0.5;
+    marker.color.a = 1.0;
+    marker.color.r = 1.0;
+    marker.color.g = 0.0;
+    marker.color.b = 0.0;
+    return marker;
+}
+
+std::vector<std::vector<int>> EigenToGridMap(const std::vector<Eigen::Vector4d>& points,
+                                                const std::vector<std::vector<double>> key_frame_bounds,
+                                                const std::vector<int>& key_frame_occ_size) {
+    std::vector<std::vector<int>> gridMap(key_frame_occ_size[0], std::vector<int>(key_frame_occ_size[1], 0));
+    const double x_resolution = (key_frame_bounds[0][1] - key_frame_bounds[0][0]) / key_frame_occ_size[1]; // Width
+    const double y_resolution = (key_frame_bounds[1][1] - key_frame_bounds[1][0]) / key_frame_occ_size[0]; // Height
+    for (const auto& point : points) {
+        if (point[0] < key_frame_bounds[0][0] || point[0] > key_frame_bounds[0][1] ||
+            point[1] < key_frame_bounds[1][0] || point[1] > key_frame_bounds[1][1] ||
+            point[2] < key_frame_bounds[2][0] || point[2] > key_frame_bounds[2][1]) {
+            continue;
+        }
+        // move pc to occ frame
+        int occ_x = static_cast<int>((point[0] + key_frame_bounds[0][1])/ x_resolution);
+        int occ_y = static_cast<int>((point[1] + key_frame_bounds[1][1])/ y_resolution);
+
+        // check if the point is within the bounds of the occupancy grid
+        if (occ_x >= 0 && occ_x < key_frame_occ_size[1] && occ_y >= 0 && occ_y < key_frame_occ_size[0]) {
+            gridMap[occ_y][occ_x] = 1; // update the occupancy grid
+        }
+    }
+    return gridMap;
+}
+
+double compute_occ_overlap(const std::vector<std::vector<int>>& occ_s, const std::vector<std::vector<int>>& occ_t) {
+    int overlap = 0;
+    int total = 0;
+    for (size_t i = 0; i < occ_s.size(); i++) {
+        for (size_t j = 0; j < occ_s[0].size(); j++) {
+            if (occ_s[i][j] == 1 && occ_t[i][j] == 1) {
+                overlap++;
+            }
+            if (occ_s[i][j] == 1) {
+                total++;
+            }
+        }
+    }
+    return static_cast<double>(overlap) / total;
+}
+
+std::vector<std::vector<int>> unpack_2d_array_int(const std::string& packed_str) {
     std::vector<std::vector<int>> result;
     std::stringstream ss(packed_str);
     std::string row_str;
     
     while (std::getline(ss, row_str, ';')) {
         std::vector<int> row;
+        std::stringstream row_ss(row_str);
+        std::string value_str;
+        
+        while (std::getline(row_ss, value_str, ',')) {
+            row.push_back(std::stof(value_str));
+        }
+        
+        result.push_back(row);
+    }
+    
+    return result;
+}
+
+std::vector<std::vector<double>> unpack_2d_array_double(const std::string& packed_str) {
+    std::vector<std::vector<double>> result;
+    std::stringstream ss(packed_str);
+    std::string row_str;
+    
+    while (std::getline(ss, row_str, ';')) {
+        std::vector<double> row;
         std::stringstream row_ss(row_str);
         std::string value_str;
         

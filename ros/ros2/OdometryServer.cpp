@@ -64,12 +64,11 @@ OdometryServer::OdometryServer() : rclcpp::Node("odometry_node") {
     config_.min_range = declare_parameter<double>("min_range", config_.min_range);
     config_.label_max_range = declare_parameter<double>("label_max_range", config_.label_max_range);
     std::string voxel_labels_str_ = declare_parameter<std::string>("voxel_labels_str");
-    config_.voxel_labels = utils::unpack_2d_array(voxel_labels_str_);
+    config_.voxel_labels = utils::unpack_2d_array_int(voxel_labels_str_);
     config_.voxel_size = declare_parameter<std::vector<double>>("voxel_size", config_.voxel_size);
     config_.dynamic_vehicle_filter = declare_parameter<bool>("dynamic_vehicle_filter", config_.dynamic_vehicle_filter);
     config_.dynamic_vehicle_filter_th = declare_parameter<double>("dynamic_vehicle_filter_th", config_.dynamic_vehicle_filter_th);
     config_.dynamic_vehicle_voxid = declare_parameter<int>("dynamic_vehicle_voxid", config_.dynamic_vehicle_voxid);
-    // config_.dynamic_remove_lankmark = declare_parameter<std::vector<int>>("dynamic_remove_lankmark", config_.dynamic_remove_lankmark);
     auto temp_vector = declare_parameter<std::vector<long int>>("dynamic_remove_lankmark", std::vector<long int>(config_.dynamic_remove_lankmark.begin(), config_.dynamic_remove_lankmark.end()));
     config_.dynamic_remove_lankmark.clear();
     std::transform(temp_vector.begin(), temp_vector.end(), std::back_inserter(config_.dynamic_remove_lankmark), [](long int val) { return static_cast<int>(val); });
@@ -77,7 +76,6 @@ OdometryServer::OdometryServer() : rclcpp::Node("odometry_node") {
     config_.local_map_range = declare_parameter<double>("local_map_range", config_.local_map_range);
     config_.basic_points_per_voxel = declare_parameter<int>("basic_points_per_voxel", config_.basic_points_per_voxel);
     config_.critical_points_per_voxel = declare_parameter<int>("critical_points_per_voxel", config_.critical_points_per_voxel);
-    // config_.basic_parts_labels = declare_parameter<std::vector<int>>("basic_parts_labels", config_.basic_parts_labels);
     auto temp_vector2 = declare_parameter<std::vector<long int>>("basic_parts_labels", std::vector<long int>(config_.basic_parts_labels.begin(), config_.basic_parts_labels.end()));
     config_.basic_parts_labels.clear();
     std::transform(temp_vector2.begin(), temp_vector2.end(), std::back_inserter(config_.basic_parts_labels), [](long int val) { return static_cast<int>(val); });
@@ -86,6 +84,16 @@ OdometryServer::OdometryServer() : rclcpp::Node("odometry_node") {
     config_.min_motion_th = declare_parameter<double>("min_motion_th", config_.min_motion_th);
     std::string color_list_str_ = declare_parameter<std::string>("color_list_str");
     color_list_ = utils::unpack_dict(color_list_str_);
+    publish_key_frame_ = declare_parameter<bool>("publish_key_frame", publish_key_frame_);
+    key_frame_topic_ = declare_parameter<std::string>("key_frame_topic", key_frame_topic_);
+    key_marker_topic_ = declare_parameter<std::string>("key_marker_topic", key_marker_topic_);
+    key_frame_overlap_ = declare_parameter<double>("key_frame_overlap", key_frame_overlap_);
+    std::string key_frame_bounds_str_ = declare_parameter<std::string>("key_frame_bounds_str");
+    key_frame_bounds_ = utils::unpack_2d_array_double(key_frame_bounds_str_);
+    auto temp_vector3 = declare_parameter<std::vector<long int>>("key_frame_occ_size", std::vector<long int>(key_frame_occ_size_.begin(), key_frame_occ_size_.end()));
+    key_frame_occ_size_.clear();
+    std::transform(temp_vector3.begin(), temp_vector3.end(), std::back_inserter(key_frame_occ_size_), [](long int val) { return static_cast<int>(val); });
+
     if (config_.max_range < config_.min_range) {
         RCLCPP_WARN(get_logger(), "[WARNING] max_range is smaller than min_range, settng min_range to 0.0");
         config_.min_range = 0.0;
@@ -111,6 +119,8 @@ OdometryServer::OdometryServer() : rclcpp::Node("odometry_node") {
     odom_publisher_ = create_publisher<nav_msgs::msg::Odometry>(odom_topic_, qos);
     frame_publisher_ = create_publisher<sensor_msgs::msg::PointCloud2>(frame_topic_, qos);
     map_publisher_ = create_publisher<sensor_msgs::msg::PointCloud2>(local_map_topic_, qos);
+    key_frame_publisher_ = create_publisher<sensor_msgs::msg::PointCloud2>(key_frame_topic_, qos);
+    marker_publisher_ = create_publisher<visualization_msgs::msg::Marker>(key_marker_topic_, qos);
     path_msg_.header.frame_id = odom_frame_;
     traj_publisher_ = create_publisher<nav_msgs::msg::Path>(trajectory_topic_, qos);
     gt_path_msg_.header.frame_id = odom_frame_;
@@ -154,7 +164,7 @@ void OdometryServer::RegisterFrame(const sensor_msgs::msg::PointCloud2::SharedPt
     }();
 
     // Register frame, main entry point to SAGE-ICP pipeline
-    const auto &[frame, timeicp, timeall] = odometry_.RegisterFrame(points, timestamps); //frame为当前帧点云，keypoints为当前帧二次降采样后的点云
+    const auto &[frame, timeicp, timeall] = odometry_.RegisterFrame(points, timestamps); //frame is downsampling point cloud for registration
     Eigen::Vector2d time_use;
     time_use << timeicp, timeall;
     time_icp.emplace_back(time_use);
@@ -208,8 +218,28 @@ void OdometryServer::RegisterFrame(const sensor_msgs::msg::PointCloud2::SharedPt
         map_publisher_->publish(utils::EigenToPointCloud2(local_map, local_map_header, color_list_));
     }
 
-}
+    if (publish_key_frame_){
+        std::vector<std::vector<int>> current_key_frame_occ_ = utils::EigenToGridMap(points, key_frame_bounds_, key_frame_occ_size_);
+        if (last_key_frame_occ_.size() == 0){
+            last_key_frame_occ_ = current_key_frame_occ_;
+            std_msgs::msg::Header frame_header = msg.header;
+            frame_header.frame_id = base_frame_;
+            key_frame_publisher_->publish(utils::EigenToPointCloud2(points, frame_header, color_list_));
+            marker_publisher_->publish(utils::OdomToMarker(odom_msg, key_marker_topic_, last_marker_id_));
+        }
+        else{
+            double overlap = utils::compute_occ_overlap(last_key_frame_occ_, current_key_frame_occ_);
+            if (overlap < key_frame_overlap_){
+                last_key_frame_occ_ = current_key_frame_occ_;
+                std_msgs::msg::Header frame_header = msg.header;
+                frame_header.frame_id = base_frame_;
+                key_frame_publisher_->publish(utils::EigenToPointCloud2(points, frame_header, color_list_));
+                marker_publisher_->publish(utils::OdomToMarker(odom_msg, key_marker_topic_, last_marker_id_));
+            }
+        }
+    }
 
+}
 
 void OdometryServer::pub_gtpath(const geometry_msgs::msg::PoseStamped::SharedPtr msg_ptr) {
     const geometry_msgs::msg::PoseStamped &msg = *msg_ptr;

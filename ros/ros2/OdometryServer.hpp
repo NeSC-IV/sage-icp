@@ -34,6 +34,7 @@
 #include "nav_msgs/msg/path.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
+#include "visualization_msgs/msg/marker.hpp"
 #include "tf2_ros/transform_broadcaster.h"
 #include "example_interfaces/srv/add_two_ints.hpp"
 namespace sage_icp_ros {
@@ -70,7 +71,8 @@ private:
     rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_publisher_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr frame_publisher_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr map_publisher_;
-    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr globalmap_publisher_;
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr key_frame_publisher_;
+    rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr marker_publisher_;
 
     /// service
     rclcpp::Service<example_interfaces::srv::AddTwoInts>::SharedPtr reinit_service_;
@@ -78,7 +80,6 @@ private:
     // nav_msgs::msg::Path path_msg_;
     rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr traj_publisher_;
     /// Groundtruth Path publisher
-    // nav_msgs::msg::Path gt_path_msg_;
     rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr GT_publisher_;
 
     /// SAGE-ICP
@@ -98,6 +99,14 @@ private:
     std::string gt_topic_{"/ground_truth"};
     std::string gt_trajectory_topic_{"gt_trajectory"};
     std::map<int, int> color_list_;
+    bool publish_key_frame_{false};
+    std::string key_frame_topic_{"key_frame"};
+    std::string key_marker_topic_{"key_marker"};
+    double key_frame_overlap_{0.5};
+    std::vector<std::vector<double>> key_frame_bounds_;
+    std::vector<int> key_frame_occ_size_;
+    int last_marker_id_{-1};
+    std::vector<std::vector<int>> last_key_frame_occ_;
 };
 
 }  // namespace sage_icp_ros
