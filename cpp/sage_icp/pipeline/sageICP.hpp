@@ -70,8 +70,6 @@ public:
     using Vector4dVectorTuple = std::tuple<Vector4dVector, double, double>;
     using Vector4dVectorTuple2 = std::tuple<Vector4dVector, Vector4dVector>;
 
-
-public:
     explicit sageICP(const sageConfig &config)
         : config_(config),
         sem_map_(config.voxel_size_map, config_.local_map_range, config_.basic_points_per_voxel, config_.critical_points_per_voxel, config_.basic_parts_labels),
@@ -79,7 +77,6 @@ public:
 
     sageICP() : sageICP(sageConfig{}) {}
 
-public:
     Vector4dVectorTuple RegisterFrame(const std::vector<Eigen::Vector4d> &frame);
     Vector4dVectorTuple RegisterFrame(const std::vector<Eigen::Vector4d> &frame,
                                       const std::vector<double> &timestamps);
@@ -87,12 +84,13 @@ public:
     double GetAdaptiveThreshold();
     Sophus::SE3d GetPredictionModel() const;
     bool HasMoved();
+    std::vector<Eigen::Vector4d> TransformToLastFrame(const Sophus::SE3d &last_pose,
+                                                        const Sophus::SE3d &current_pose,
+                                                        const std::vector<Eigen::Vector4d> &points);
 
-public:
     // Extra C++ API to facilitate ROS debugging
     std::vector<Eigen::Vector4d> LocalMap() const { return sem_map_.Pointcloud(); };
     std::vector<Sophus::SE3d> poses() const { return poses_; };
-
     bool reinitialize() { 
         poses_.clear();
         adaptive_threshold_ = AdaptiveThreshold(config_.initial_threshold, config_.min_motion_th, config_.max_range);

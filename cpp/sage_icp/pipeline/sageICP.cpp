@@ -122,4 +122,12 @@ bool sageICP::HasMoved() {
     return motion > 5.0 * config_.min_motion_th;
 }
 
+std::vector<Eigen::Vector4d> sageICP::TransformToLastFrame(const Sophus::SE3d &last_pose,
+                                                        const Sophus::SE3d &current_pose,
+                                                        const std::vector<Eigen::Vector4d> &points){
+    std::vector<Eigen::Vector4d> trans_points = points;
+    sage_icp::TransformPoints(last_pose.inverse() * current_pose, trans_points);
+    return trans_points;
+}
+
 }  // namespace sage_icp::pipeline

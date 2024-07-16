@@ -56,16 +56,6 @@ struct ResultTuple {
     Eigen::Vector6d JTr;
 };
 
-void TransformPoints(const Sophus::SE3d &T, std::vector<Eigen::Vector4d> &points) {
-    std::transform(points.cbegin(), points.cend(), points.begin(),
-                   [&](const auto &point) {
-                    Eigen::Vector3d v3point(point[0],point[1],point[2]);
-                    Eigen::Vector3d transformed_v3point = T * v3point;
-                    Eigen::Vector4d v4point(transformed_v3point[0], transformed_v3point[1], transformed_v3point[2], point[3]);
-                    return v4point;
-                    });
-}
-
 Sophus::SE3d AlignClouds(const std::vector<Eigen::Vector4d> &source,
                          const std::vector<Eigen::Vector4d> &target,
                          double th) {
@@ -109,6 +99,16 @@ constexpr double ESTIMATION_THRESHOLD_ = 0.0001;
 }  // namespace
 
 namespace sage_icp {
+
+void TransformPoints(const Sophus::SE3d &T, std::vector<Eigen::Vector4d> &points) {
+    std::transform(points.cbegin(), points.cend(), points.begin(),
+                   [&](const auto &point) {
+                    Eigen::Vector3d v3point(point[0],point[1],point[2]);
+                    Eigen::Vector3d transformed_v3point = T * v3point;
+                    Eigen::Vector4d v4point(transformed_v3point[0], transformed_v3point[1], transformed_v3point[2], point[3]);
+                    return v4point;
+                    });
+}
 
 Sophus::SE3d RegisterFrame(const std::vector<Eigen::Vector4d> &frame,
                            const VoxelHashMap &voxel_map,
