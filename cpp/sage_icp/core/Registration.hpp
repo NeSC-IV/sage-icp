@@ -29,6 +29,8 @@
 
 namespace sage_icp {
 
+void TransformPoints(const Sophus::SE3d &T, std::vector<Eigen::Vector4d> &points);
+
 Sophus::SE3d RegisterFrame(const std::vector<Eigen::Vector4d> &frame,
                            const VoxelHashMap &voxel_map,
                            const Sophus::SE3d &initial_guess,

@@ -219,18 +219,21 @@ void OdometryServer::RegisterFrame(const sensor_msgs::msg::PointCloud2::SharedPt
     }
 
     if (publish_key_frame_){
-        std::vector<std::vector<int>> current_key_frame_occ_ = utils::EigenToGridMap(points, key_frame_bounds_, key_frame_occ_size_);
         if (last_key_frame_occ_.size() == 0){
-            last_key_frame_occ_ = current_key_frame_occ_;
+            last_pose_ = pose;
+            last_key_frame_occ_ = utils::EigenToGridMap(points, key_frame_bounds_, key_frame_occ_size_);
             std_msgs::msg::Header frame_header = msg.header;
             frame_header.frame_id = base_frame_;
             key_frame_publisher_->publish(utils::EigenToPointCloud2(points, frame_header, color_list_));
             marker_publisher_->publish(utils::OdomToMarker(odom_msg, key_marker_topic_, last_marker_id_));
         }
         else{
+            const auto points_in_last_frame_ = odometry_.TransformToLastFrame(last_pose_, pose, points);
+            std::vector<std::vector<int>> current_key_frame_occ_ = utils::EigenToGridMap(points_in_last_frame_, key_frame_bounds_, key_frame_occ_size_);
             double overlap = utils::compute_occ_overlap(last_key_frame_occ_, current_key_frame_occ_);
             if (overlap < key_frame_overlap_){
-                last_key_frame_occ_ = current_key_frame_occ_;
+                last_pose_ = pose;
+                last_key_frame_occ_ = utils::EigenToGridMap(points, key_frame_bounds_, key_frame_occ_size_); 
                 std_msgs::msg::Header frame_header = msg.header;
                 frame_header.frame_id = base_frame_;
                 key_frame_publisher_->publish(utils::EigenToPointCloud2(points, frame_header, color_list_));

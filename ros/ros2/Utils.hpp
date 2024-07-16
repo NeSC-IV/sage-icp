@@ -111,7 +111,7 @@ auto CreatePointCloud2Msg(const size_t n_points, const Header &header, bool time
     offset = addPointField(cloud_msg, "x", 1, PointField::FLOAT32, offset);
     offset = addPointField(cloud_msg, "y", 1, PointField::FLOAT32, offset);
     offset = addPointField(cloud_msg, "z", 1, PointField::FLOAT32, offset);
-    offset = addPointField(cloud_msg, "label", 1, PointField::FLOAT32, offset);
+    offset = addPointField(cloud_msg, "label", 1, PointField::UINT8, offset);
     offset = addPointField(cloud_msg, "rgb", 1, PointField::UINT32, offset);
     offset += sizeOfPointField(PointField::FLOAT32);
     if (timestamp) {
@@ -132,14 +132,14 @@ void FillPointCloud2XYZlRGB(const std::vector<Eigen::Vector4d> &points, const st
     sensor_msgs::PointCloud2Iterator<float> msg_x(msg, "x");
     sensor_msgs::PointCloud2Iterator<float> msg_y(msg, "y");
     sensor_msgs::PointCloud2Iterator<float> msg_z(msg, "z");
-    sensor_msgs::PointCloud2Iterator<float> msg_label(msg, "label");
+    sensor_msgs::PointCloud2Iterator<uint8_t> msg_label(msg, "label");
     sensor_msgs::PointCloud2Iterator<uint32_t> msg_rgb(msg, "rgb");
     for (size_t i = 0; i < points.size(); i++, ++msg_x, ++msg_y, ++msg_z, ++msg_label, ++msg_rgb) {
         const Eigen::Vector4d &point = points[i];
         *msg_x = point.x();
         *msg_y = point.y();
         *msg_z = point.z();
-        *msg_label = point.w();
+        *msg_label = static_cast<uint8_t>(point.w());
         *msg_rgb = color_list.at(static_cast<int>(point.w()));
     }
 }
@@ -207,9 +207,9 @@ Marker OdomToMarker(const nav_msgs::msg::Odometry &odom_msg,
     marker.type = Marker::SPHERE;
     marker.action = Marker::ADD;
     marker.pose = odom_msg.pose.pose;
-    marker.scale.x = 0.5;
-    marker.scale.y = 0.5;
-    marker.scale.z = 0.5;
+    marker.scale.x = 0.3;
+    marker.scale.y = 0.3;
+    marker.scale.z = 0.3;
     marker.color.a = 1.0;
     marker.color.r = 1.0;
     marker.color.g = 0.0;
