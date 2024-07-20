@@ -168,6 +168,7 @@ void OdometryServer::RegisterFrame(const sensor_msgs::msg::PointCloud2::SharedPt
     Eigen::Vector2d time_use;
     time_use << timeicp, timeall;
     time_icp.emplace_back(time_use);
+    RCLCPP_INFO(this->get_logger(), "Time (ICP/ALL): %f s / %f s", timeicp, timeall);
     // PublishPose
     const auto pose = odometry_.poses().back(); //Sophus::SE3d
     // Convert from Eigen to ROS types

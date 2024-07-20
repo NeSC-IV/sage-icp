@@ -85,9 +85,7 @@ sageICP::Vector4dVectorTuple sageICP::RegisterFrame(const std::vector<Eigen::Vec
                                                           config_.sem_th);   // kernel
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = end - start;
-    std::cout<<"ICP time: "<< elapsed.count()<<" s"<<std::endl;
     std::chrono::duration<double> elapsed_all = end - preprocess_start;
-    std::cout<<"All time: "<< elapsed_all.count()<<" s"<<std::endl;
 
     const auto model_deviation = initial_guess.inverse() * new_pose;  // deviation between initial guess and new pose
     adaptive_threshold_.UpdateModelDeviation(model_deviation);
