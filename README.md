@@ -64,6 +64,31 @@ ros2 launch sage_icp sem_odom.launch.py
 source install/setup.bash
 ros2 launch sage_icp range_odom.launch.py
 ```
+## topics
+### input topic
+* topic: `/label_points`
+* description: Input LiDAR point cloud with semantic labels
+* type: `sensor_msgs/msg/PointCloud2`
+* format: (x,y,z,label,rgb)
+  * `xyz` (float32)
+  * `label` (uint8)
+  * `rgb` (uint32)
+  
+### output topic
+* topic: `/sage_icp/key_frame`
+* description: Output key frame point cloud in base_link frame
+* type: `sensor_msgs/msg/PointCloud2`
+* format: (x,y,z,label,rgb)
+  * `xyz` (float32)
+  * `label` (uint8)
+  * `rgb` (uint32)
+
+* topic: `/sage_icp/key_marker`
+* description: Output key frame marker
+* type: `visualization_msgs/msg/Marker, SPHERE`
+* info:
+  * `id`: key frame id, start with 0
+  * `pose`: key frame transformation from base_link to odom
 
 ## Citation
 
