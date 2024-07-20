@@ -49,6 +49,11 @@ To evaluate on LIVOX Odometry, please run:
 source install/setup.bash
 ros2 launch sage_icp odometry_livox.launch.py
 ```
+To evaluate on LIVOX SLAM, please run:
+```sh
+source install/setup.bash
+ros2 launch sage_icp livox_slam.launch.py
+```
 ~~To evaluate cylinder3D on KITTI Odometry, please run:~~
 ```sh
 source install/setup.bash
