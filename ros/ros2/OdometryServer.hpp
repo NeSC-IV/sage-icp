@@ -105,7 +105,7 @@ private:
     double key_frame_overlap_{0.5};
     std::vector<std::vector<double>> key_frame_bounds_;
     std::vector<int> key_frame_occ_size_;
-    int last_marker_id_{-1};
+    int last_marker_id_{0};
     Sophus::SE3d last_pose_;
     std::vector<std::vector<int>> last_key_frame_occ_;
 };
