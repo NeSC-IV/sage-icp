@@ -41,22 +41,22 @@ cd .. && colcon build --symlink-install
 To evaluate on LIVOX Odometry, please run:
 ```sh
 source install/setup.bash
-ros2 launch sage_icp odometry_livox.launch.py
+ros2 launch sage_icp odometry_livox_launch.py
 ```
 To evaluate on LIVOX SLAM, please run:
 ```sh
 source install/setup.bash
-ros2 launch sage_icp livox_slam.launch.py
+ros2 launch sage_icp livox_slam_launch.py
 ```
 To evaluate cylinder3D on KITTI Odometry, please run:
 ```sh
 source install/setup.bash
-ros2 launch sage_icp sem_odom.launch.py
+ros2 launch sage_icp sem_odom_launch.py
 ```
 To evaluate RangeNet++ on KITTI Odometry, please run:
 ```sh
 source install/setup.bash
-ros2 launch sage_icp range_odom.launch.py
+ros2 launch sage_icp range_odom_launch.py
 ```
 ## topics
 ### input topic

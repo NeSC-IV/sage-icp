@@ -24,27 +24,28 @@ class Basic_config():
         self.frame_topic: str = "/sage_icp/frame"
         self.local_map_topic: str = "/sage_icp/local_map"
 
-        self.sub_ground_truth: bool = True
+        self.sub_ground_truth: bool = False
         self.gt_topic: str = "/ground_truth" # input gt_topic
         self.gt_trajectory_topic: str = "/sage_icp/gt_trajectory"
+
+        self.sub_correct_pose: bool = True
+        self.correct_pose_topic: str = "/sem_sam/correct_marker" # correct odometry topic
         
         # Pointcloud pre-process
         self.deskew: bool = False # Point cloud deskew
-        self.max_range: float = 100.0 # pointcloud max range
-        self.min_range: float = 5.0 # pointcloud min range
-        self.label_max_range: float = 50.0 # label max range
+        self.max_range: float = 30.0 # pointcloud max range
+        self.min_range: float = 1.0 # pointcloud min range
+        self.label_max_range: float = 20.0 # label max range
         
         # Voxel grid filter
         self.voxel_labels = [
-            [40, 44, 48, 49],  # road
-            [50, 51, 52],  # building
-            [70, 72],  # plant
-            [60, 71, 80, 81, 99], # object
             [0],  # unlabelled
-            [10, 11, 13, 15, 16, 18, 20],  # vehicle
+            [1, 8],  # object
+            [2, 3, 4, 5],  # furniture
+            [6, 7, 10, 11, 12, 13],  # large planar
         ]
         self.voxel_labels_str: str = self.pack_2d_array(self.voxel_labels) # pack 2d array to string
-        self.voxel_size: list = [0.6, 1.0, 0.9, 0.8, 1.0, 0.6]
+        self.voxel_size: list = [0.5, 0.1, 0.2, 0.3]
 
         # Dynamic cars remove
         self.dynamic_vehicle_filter: bool = False
@@ -53,14 +54,14 @@ class Basic_config():
         self.dynamic_remove_lankmark: list = [44, 48] # landmark labels for dynamic remove
         
         # Map
-        self.voxel_size_map: float = 0.8
-        self.local_map_range: float = 100.0
+        self.voxel_size_map: float = 0.2
+        self.local_map_range: float = 30.0
         self.basic_points_per_voxel: int = 20 # basic part
         self.critical_points_per_voxel: int = 20 # critical part
-        self.basic_parts_labels: list = [40, 44, 48, 49, 50, 70, 72] # basic parts labels, others are critical parts
+        self.basic_parts_labels: list = [0, 2, 3, 4, 5, 6, 7, 10, 11, 12, 13] # basic parts labels, others are critical parts
         
         # Semantic assisted association
-        self.sem_th: float = 0.05
+        self.sem_th: float = 0.2
         
         # KISS-ICP Adaptive threshold
         self.initial_threshold: float = 2.0
@@ -81,11 +82,11 @@ class Basic_config():
         self.color_list_str: str = self.pack_2d_array(self.color_list)
 
         # Key Frames extract
-        self.publish_key_frame: bool = False # publish key frame
+        self.publish_key_frame: bool = True # publish key frame
         self.key_frame_topic: str = "/sage_icp/key_frame"
         self.key_marker_topic: str = "/sage_icp/key_marker"
         self.key_frame_overlap: float = 0.5 # map sample overlap
-        self.key_frame_bounds: list = [[-51.2, 51.2], [-51.2, 51.2], [-4, 2.4]] # Point Cloud Boundaries, used for generate occupancy map
+        self.key_frame_bounds: list = [[-30, 30], [-30, 30], [-1.5, 1.8]] # Point Cloud Boundaries, used for generate occupancy map
         self.key_frame_bounds_str: str = self.pack_2d_array(self.key_frame_bounds)
         self.key_frame_occ_size: list = [128, 128] # H*W, occ resolution
 
@@ -99,7 +100,7 @@ class Basic_config():
 
 def generate_launch_description():
     
-    sage_icp_config = Basic_config()
+    sage_icp_config = Basic_config("livox_labels.yaml")
     # SAGE-ICP Node
     sage_icp_node = Node(
                     package="sage_icp",
@@ -119,7 +120,9 @@ def generate_launch_description():
                             "local_map_topic": sage_icp_config.local_map_topic,
                             "sub_ground_truth": sage_icp_config.sub_ground_truth,
                             "gt_topic": sage_icp_config.gt_topic,
-                            "gt_trajectory_topic_": sage_icp_config.gt_trajectory_topic,
+                            "gt_trajectory_topic": sage_icp_config.gt_trajectory_topic,
+                            "sub_correct_pose": sage_icp_config.sub_correct_pose,
+                            "correct_pose_topic": sage_icp_config.correct_pose_topic,
                             "deskew": sage_icp_config.deskew,
                             "max_range": sage_icp_config.max_range,
                             "min_range": sage_icp_config.min_range,
@@ -149,26 +152,26 @@ def generate_launch_description():
                     ],
                 )
     # RVIZ2
-    rviz2_node = Node(
-                    package="rviz2",
-                    executable="rviz2",
-                    output={"both": "log"},
-                    arguments=["-d", PathJoinSubstitution([sage_icp_config.current_pkg, "rviz", "sage_icp_ros2.rviz"])],
-                    condition=IfCondition(sage_icp_config.visualize),
-                    )
+    # rviz2_node = Node(
+    #                 package="rviz2",
+    #                 executable="rviz2",
+    #                 output={"both": "log"},
+    #                 arguments=["-d", PathJoinSubstitution([sage_icp_config.current_pkg, "rviz", "sage_icp_ros2.rviz"])],
+    #                 condition=IfCondition(sage_icp_config.visualize),
+    #                 )
     # ROS2 bag play
-    bag_play = ExecuteProcess(
-                    cmd=["ros2", "bag", "play", sage_icp_config.bagfile],
-                    output="screen",
-                    condition=IfCondition(
-                        PythonExpression(["'", sage_icp_config.bagfile, "' != ''"])
-                    ),
-                )
+    # bag_play = ExecuteProcess(
+    #                 cmd=["ros2", "bag", "play", sage_icp_config.bagfile],
+    #                 output="screen",
+    #                 condition=IfCondition(
+    #                     PythonExpression(["'", sage_icp_config.bagfile, "' != ''"])
+    #                 ),
+    #             )
     return LaunchDescription(
         [
             sage_icp_node,
-            rviz2_node,
-            bag_play,
+            # rviz2_node,
+            # bag_play,
         ]
     )
 

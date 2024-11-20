@@ -199,11 +199,11 @@ PointCloud2 EigenToPointCloud2(const std::vector<Eigen::Vector4d> &points,
 
 Marker OdomToMarker(const nav_msgs::msg::Odometry &odom_msg,
                     const std::string &key_frame_topic,
-                    int &last_marker_id){
+                    const int &last_marker_id){
     Marker marker;
     marker.header = odom_msg.header;
     marker.ns = key_frame_topic;
-    marker.id = last_marker_id++;
+    marker.id = last_marker_id;
     marker.type = Marker::SPHERE;
     marker.action = Marker::ADD;
     marker.pose = odom_msg.pose.pose;

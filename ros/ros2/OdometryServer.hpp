@@ -47,10 +47,10 @@ public:
 private:
     /// Register new frame
     void RegisterFrame(const sensor_msgs::msg::PointCloud2::SharedPtr msg_ptr);
-    /// pre-matching
-    // Sophus::SE3d PreMatching(pcl::PointCloud<pcl::PointXYZ>::Ptr &building_pc);
     /// publish groundtruth
     void pub_gtpath(const geometry_msgs::msg::PoseStamped::SharedPtr msg_ptr);
+    /// Correct pose from iSam2
+    void CorrectPose(const visualization_msgs::msg::Marker::SharedPtr msg_ptr);
 
     void ReinitService(const std::shared_ptr<rmw_request_id_t> request_header,
     const std::shared_ptr<example_interfaces::srv::AddTwoInts::Request> request,
@@ -66,6 +66,7 @@ private:
     /// Data subscribers.
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr pointcloud_sub_;
     rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr gt_sub_;
+    rclcpp::Subscription<visualization_msgs::msg::Marker>::SharedPtr correct_pose_sub_;
 
     /// Data publishers.
     rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_publisher_;
@@ -96,8 +97,10 @@ private:
     std::string frame_topic_{"frame"};
     std::string local_map_topic_{"local_map"};
     bool sub_ground_truth_{false};
-    std::string gt_topic_{"/ground_truth"};
+    std::string gt_topic_{"ground_truth"};
     std::string gt_trajectory_topic_{"gt_trajectory"};
+    bool sub_correct_pose_{false};
+    std::string correct_pose_topic_{"correct_marker"};
     std::map<int, int> color_list_;
     bool publish_key_frame_{false};
     std::string key_frame_topic_{"key_frame"};
@@ -105,7 +108,7 @@ private:
     double key_frame_overlap_{0.5};
     std::vector<std::vector<double>> key_frame_bounds_;
     std::vector<int> key_frame_occ_size_;
-    int last_marker_id_{0};
+    int last_marker_id_{-1};
     Sophus::SE3d last_pose_;
     std::vector<std::vector<int>> last_key_frame_occ_;
 };

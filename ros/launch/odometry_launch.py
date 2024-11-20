@@ -44,7 +44,7 @@ class Basic_config():
             [10, 11, 13, 15, 16, 18, 20],  # vehicle
         ]
         self.voxel_labels_str: str = self.pack_2d_array(self.voxel_labels) # pack 2d array to string
-        self.voxel_size: list = [1.0, 0.5, 1.0, 0.5, 1.0, 0.5]
+        self.voxel_size: list = [0.6, 1.0, 0.9, 0.8, 1.0, 0.6]
 
         # Dynamic cars remove
         self.dynamic_vehicle_filter: bool = True
@@ -53,14 +53,14 @@ class Basic_config():
         self.dynamic_remove_lankmark: list = [44, 48] # landmark labels for dynamic remove
         
         # Map
-        self.voxel_size_map: float = 1.0
+        self.voxel_size_map: float = 0.8
         self.local_map_range: float = 100.0
         self.basic_points_per_voxel: int = 20 # basic part
         self.critical_points_per_voxel: int = 20 # critical part
         self.basic_parts_labels: list = [40, 44, 48, 49, 50, 70, 72] # basic parts labels, others are critical parts
         
         # Semantic assisted association
-        self.sem_th: float = 0.8
+        self.sem_th: float = 0.4
         
         # KISS-ICP Adaptive threshold
         self.initial_threshold: float = 2.0
@@ -119,7 +119,7 @@ def generate_launch_description():
                             "local_map_topic": sage_icp_config.local_map_topic,
                             "sub_ground_truth": sage_icp_config.sub_ground_truth,
                             "gt_topic": sage_icp_config.gt_topic,
-                            "gt_trajectory_topic_": sage_icp_config.gt_trajectory_topic,
+                            "gt_trajectory_topic": sage_icp_config.gt_trajectory_topic,
                             "deskew": sage_icp_config.deskew,
                             "max_range": sage_icp_config.max_range,
                             "min_range": sage_icp_config.min_range,

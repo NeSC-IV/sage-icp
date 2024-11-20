@@ -119,7 +119,7 @@ def generate_launch_description():
                             "local_map_topic": sage_icp_config.local_map_topic,
                             "sub_ground_truth": sage_icp_config.sub_ground_truth,
                             "gt_topic": sage_icp_config.gt_topic,
-                            "gt_trajectory_topic_": sage_icp_config.gt_trajectory_topic,
+                            "gt_trajectory_topic": sage_icp_config.gt_trajectory_topic,
                             "deskew": sage_icp_config.deskew,
                             "max_range": sage_icp_config.max_range,
                             "min_range": sage_icp_config.min_range,

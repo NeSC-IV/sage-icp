@@ -59,6 +59,8 @@ OdometryServer::OdometryServer() : rclcpp::Node("odometry_node") {
     sub_ground_truth_ = declare_parameter<bool>("sub_ground_truth", sub_ground_truth_);
     gt_topic_ = declare_parameter<std::string>("gt_topic", gt_topic_);
     gt_trajectory_topic_ = declare_parameter<std::string>("gt_trajectory_topic", gt_trajectory_topic_);
+    sub_correct_pose_ = declare_parameter<bool>("sub_correct_pose", sub_correct_pose_);
+    correct_pose_topic_ = declare_parameter<std::string>("correct_pose_topic", correct_pose_topic_);
     config_.deskew = declare_parameter<bool>("deskew", config_.deskew);
     config_.max_range = declare_parameter<double>("max_range", config_.max_range);
     config_.min_range = declare_parameter<double>("min_range", config_.min_range);
@@ -112,6 +114,12 @@ OdometryServer::OdometryServer() : rclcpp::Node("odometry_node") {
         gt_sub_ = create_subscription<geometry_msgs::msg::PoseStamped>(
             gt_topic_, 10, //rclcpp::SensorDataQoS(),
             std::bind(&OdometryServer::pub_gtpath, this, std::placeholders::_1));
+    }
+    if (sub_correct_pose_){
+        RCLCPP_INFO(this->get_logger(), "Correct pose subscription enable!");
+        correct_pose_sub_ = create_subscription<visualization_msgs::msg::Marker>(
+            correct_pose_topic_, 10, //rclcpp::SensorDataQoS(),
+            std::bind(&OdometryServer::CorrectPose, this, std::placeholders::_1));
     }
 
     // Intialize publishers
@@ -168,7 +176,7 @@ void OdometryServer::RegisterFrame(const sensor_msgs::msg::PointCloud2::SharedPt
     Eigen::Vector2d time_use;
     time_use << timeicp, timeall;
     time_icp.emplace_back(time_use);
-    RCLCPP_INFO(this->get_logger(), "Time (ICP/ALL): %f s / %f s", timeicp, timeall);
+    // RCLCPP_INFO(this->get_logger(), "Time (ICP/ALL): %f s / %f s", timeicp, timeall);
     // PublishPose
     const auto pose = odometry_.poses().back(); //Sophus::SE3d
     // Convert from Eigen to ROS types
@@ -220,29 +228,27 @@ void OdometryServer::RegisterFrame(const sensor_msgs::msg::PointCloud2::SharedPt
     }
 
     if (publish_key_frame_){
-        if (last_key_frame_occ_.size() == 0){
+        bool pub_flag = false;
+
+        if (last_key_frame_occ_.size() != 0){
+            const auto points_in_last_frame_ = odometry_.TransformToLastFrame(last_pose_, pose, points);
+            std::vector<std::vector<int>> current_key_frame_occ_ = utils::EigenToGridMap(points_in_last_frame_, key_frame_bounds_, key_frame_occ_size_);
+            double overlap = utils::compute_occ_overlap(last_key_frame_occ_, current_key_frame_occ_);
+            if (overlap < key_frame_overlap_) pub_flag = true;
+        }
+        else pub_flag = true;
+
+        if (pub_flag){
+            last_marker_id_++;
             last_pose_ = pose;
-            last_key_frame_occ_ = utils::EigenToGridMap(points, key_frame_bounds_, key_frame_occ_size_);
+            last_key_frame_occ_ = utils::EigenToGridMap(points, key_frame_bounds_, key_frame_occ_size_); 
             std_msgs::msg::Header frame_header = msg.header;
             frame_header.frame_id = base_frame_;
             key_frame_publisher_->publish(utils::EigenToPointCloud2(points, frame_header, color_list_));
             marker_publisher_->publish(utils::OdomToMarker(odom_msg, key_marker_topic_, last_marker_id_));
-        }
-        else{
-            const auto points_in_last_frame_ = odometry_.TransformToLastFrame(last_pose_, pose, points);
-            std::vector<std::vector<int>> current_key_frame_occ_ = utils::EigenToGridMap(points_in_last_frame_, key_frame_bounds_, key_frame_occ_size_);
-            double overlap = utils::compute_occ_overlap(last_key_frame_occ_, current_key_frame_occ_);
-            if (overlap < key_frame_overlap_){
-                last_pose_ = pose;
-                last_key_frame_occ_ = utils::EigenToGridMap(points, key_frame_bounds_, key_frame_occ_size_); 
-                std_msgs::msg::Header frame_header = msg.header;
-                frame_header.frame_id = base_frame_;
-                key_frame_publisher_->publish(utils::EigenToPointCloud2(points, frame_header, color_list_));
-                marker_publisher_->publish(utils::OdomToMarker(odom_msg, key_marker_topic_, last_marker_id_));
-            }
+            RCLCPP_INFO(this->get_logger(), "Publish Key frame id: %d", last_marker_id_);
         }
     }
-
 }
 
 void OdometryServer::pub_gtpath(const geometry_msgs::msg::PoseStamped::SharedPtr msg_ptr) {
@@ -254,6 +260,10 @@ void OdometryServer::pub_gtpath(const geometry_msgs::msg::PoseStamped::SharedPtr
     gt_pose_msg.header.frame_id = odom_frame_;
     gt_path_msg_.poses.push_back(gt_pose_msg);
     GT_publisher_->publish(gt_path_msg_);
+}
+
+void OdometryServer::CorrectPose(const visualization_msgs::msg::Marker::SharedPtr msg_ptr) {
+    RCLCPP_INFO(this->get_logger(), "Correct pose from iSam2! ");
 }
 
 void OdometryServer::ReinitService(const std::shared_ptr<rmw_request_id_t> request_header,
