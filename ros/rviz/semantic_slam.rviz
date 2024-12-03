@@ -231,7 +231,7 @@ Visualization Manager:
           Enabled: true
           Name: loop_msg
           Namespaces:
-            {}
+            /smenet/loop: true
           Topic:
             Depth: 5
             Durability Policy: Volatile
@@ -244,7 +244,7 @@ Visualization Manager:
           Enabled: true
           Name: loop_arrow
           Namespaces:
-            {}
+            /smenet/loop_line: true
           Topic:
             Depth: 5
             Durability Policy: Volatile
@@ -279,7 +279,7 @@ Visualization Manager:
           Position Transformer: XYZ
           Selectable: true
           Size (Pixels): 3
-          Size (m): 0.009999999776482582
+          Size (m): 0.019999999552965164
           Style: Flat Squares
           Topic:
             Depth: 5
@@ -351,7 +351,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 7.401374816894531
+      Distance: 22.706707000732422
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -366,10 +366,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.5697963237762451
+      Pitch: 1.1097967624664307
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz_default_plugins)
-      Yaw: 3.1103761196136475
+      Yaw: 3.0603747367858887
     Saved: ~
 Window Geometry:
   Displays:

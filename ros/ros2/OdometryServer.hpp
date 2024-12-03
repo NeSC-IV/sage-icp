@@ -47,8 +47,6 @@ public:
 private:
     /// Register new frame
     void RegisterFrame(const sensor_msgs::msg::PointCloud2::SharedPtr msg_ptr);
-    /// publish groundtruth
-    void pub_gtpath(const geometry_msgs::msg::PoseStamped::SharedPtr msg_ptr);
     /// Correct pose from iSam2
     void CorrectPose(const visualization_msgs::msg::Marker::SharedPtr msg_ptr);
 
@@ -80,8 +78,6 @@ private:
     /// Path publisher
     // nav_msgs::msg::Path path_msg_;
     rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr traj_publisher_;
-    /// Groundtruth Path publisher
-    rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr GT_publisher_;
 
     /// SAGE-ICP
     sage_icp::pipeline::sageICP odometry_;
@@ -96,9 +92,6 @@ private:
     bool publish_frame_{false};
     std::string frame_topic_{"frame"};
     std::string local_map_topic_{"local_map"};
-    bool sub_ground_truth_{false};
-    std::string gt_topic_{"ground_truth"};
-    std::string gt_trajectory_topic_{"gt_trajectory"};
     bool sub_correct_pose_{false};
     std::string correct_pose_topic_{"correct_marker"};
     std::map<int, int> color_list_;
@@ -109,7 +102,8 @@ private:
     std::vector<std::vector<double>> key_frame_bounds_;
     std::vector<int> key_frame_occ_size_;
     int last_marker_id_{-1};
-    Sophus::SE3d last_pose_;
+    Sophus::SE3d last_pose_, opt_error_;
+    bool opt_pose_flag_{false};
     std::vector<std::vector<int>> last_key_frame_occ_;
 };
 

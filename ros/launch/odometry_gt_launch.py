@@ -23,10 +23,6 @@ class Basic_config():
         self.publish_frame: bool = True # publish frame in odom and map for visualization
         self.frame_topic: str = "/sage_icp/frame"
         self.local_map_topic: str = "/sage_icp/local_map"
-
-        self.sub_ground_truth: bool = True
-        self.gt_topic: str = "/ground_truth" # input gt_topic
-        self.gt_trajectory_topic: str = "/sage_icp/gt_trajectory"
         
         # Pointcloud pre-process
         self.deskew: bool = False # Point cloud deskew
@@ -117,9 +113,6 @@ def generate_launch_description():
                             "publish_frame": sage_icp_config.publish_frame,
                             "frame_topic": sage_icp_config.frame_topic,
                             "local_map_topic": sage_icp_config.local_map_topic,
-                            "sub_ground_truth": sage_icp_config.sub_ground_truth,
-                            "gt_topic": sage_icp_config.gt_topic,
-                            "gt_trajectory_topic": sage_icp_config.gt_trajectory_topic,
                             "deskew": sage_icp_config.deskew,
                             "max_range": sage_icp_config.max_range,
                             "min_range": sage_icp_config.min_range,

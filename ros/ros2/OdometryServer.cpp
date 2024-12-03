@@ -42,7 +42,6 @@
 #include "tf2_ros/transform_broadcaster.h"
 
 nav_msgs::msg::Path path_msg_;
-nav_msgs::msg::Path gt_path_msg_;
 std::vector<Eigen::Vector2d> time_icp;
 namespace sage_icp_ros {
 
@@ -56,9 +55,6 @@ OdometryServer::OdometryServer() : rclcpp::Node("odometry_node") {
     publish_frame_ = declare_parameter<bool>("publish_frame", publish_frame_);
     frame_topic_ = declare_parameter<std::string>("frame_topic", frame_topic_);
     local_map_topic_ = declare_parameter<std::string>("local_map_topic", local_map_topic_);
-    sub_ground_truth_ = declare_parameter<bool>("sub_ground_truth", sub_ground_truth_);
-    gt_topic_ = declare_parameter<std::string>("gt_topic", gt_topic_);
-    gt_trajectory_topic_ = declare_parameter<std::string>("gt_trajectory_topic", gt_trajectory_topic_);
     sub_correct_pose_ = declare_parameter<bool>("sub_correct_pose", sub_correct_pose_);
     correct_pose_topic_ = declare_parameter<std::string>("correct_pose_topic", correct_pose_topic_);
     config_.deskew = declare_parameter<bool>("deskew", config_.deskew);
@@ -109,12 +105,6 @@ OdometryServer::OdometryServer() : rclcpp::Node("odometry_node") {
     pointcloud_sub_ = create_subscription<sensor_msgs::msg::PointCloud2>(
         pc_topic_, 10, //rclcpp::SensorDataQoS(),
         std::bind(&OdometryServer::RegisterFrame, this, std::placeholders::_1));
-    if (sub_ground_truth_){
-        RCLCPP_INFO(this->get_logger(), "Publish groundtruth enable!");
-        gt_sub_ = create_subscription<geometry_msgs::msg::PoseStamped>(
-            gt_topic_, 10, //rclcpp::SensorDataQoS(),
-            std::bind(&OdometryServer::pub_gtpath, this, std::placeholders::_1));
-    }
     if (sub_correct_pose_){
         RCLCPP_INFO(this->get_logger(), "Correct pose subscription enable!");
         correct_pose_sub_ = create_subscription<visualization_msgs::msg::Marker>(
@@ -131,8 +121,6 @@ OdometryServer::OdometryServer() : rclcpp::Node("odometry_node") {
     marker_publisher_ = create_publisher<visualization_msgs::msg::Marker>(key_marker_topic_, qos);
     path_msg_.header.frame_id = odom_frame_;
     traj_publisher_ = create_publisher<nav_msgs::msg::Path>(trajectory_topic_, qos);
-    gt_path_msg_.header.frame_id = odom_frame_;
-    GT_publisher_ = create_publisher<nav_msgs::msg::Path>(gt_trajectory_topic_, qos);
 
     // Initialize the transform broadcaster
     tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
@@ -177,56 +165,14 @@ void OdometryServer::RegisterFrame(const sensor_msgs::msg::PointCloud2::SharedPt
     time_use << timeicp, timeall;
     time_icp.emplace_back(time_use);
     // RCLCPP_INFO(this->get_logger(), "Time (ICP/ALL): %f s / %f s", timeicp, timeall);
+    
+    std_msgs::msg::Header frame_header = msg.header;
+    frame_header.frame_id = base_frame_;
+    std_msgs::msg::Header odom_header = msg.header;
+    odom_header.frame_id = odom_frame_;
+    
     // PublishPose
-    const auto pose = odometry_.poses().back(); //Sophus::SE3d
-    // Convert from Eigen to ROS types
-    const Eigen::Vector3d t_current = pose.translation();
-    const Eigen::Quaterniond q_current = pose.unit_quaternion();
-    // Broadcast the tf
-    geometry_msgs::msg::TransformStamped transform_msg;
-    transform_msg.header.stamp = msg.header.stamp;
-    transform_msg.header.frame_id = odom_frame_;
-    transform_msg.child_frame_id = base_frame_;
-    transform_msg.transform.rotation.x = q_current.x();
-    transform_msg.transform.rotation.y = q_current.y();
-    transform_msg.transform.rotation.z = q_current.z();
-    transform_msg.transform.rotation.w = q_current.w();
-    transform_msg.transform.translation.x = t_current.x();
-    transform_msg.transform.translation.y = t_current.y();
-    transform_msg.transform.translation.z = t_current.z();
-    tf_broadcaster_->sendTransform(transform_msg);
-
-    // publish odometry msg
-    nav_msgs::msg::Odometry odom_msg;
-    odom_msg.header.stamp = msg.header.stamp;
-    odom_msg.header.frame_id = odom_frame_;
-    odom_msg.child_frame_id = base_frame_;
-    odom_msg.pose.pose.orientation.x = q_current.x();
-    odom_msg.pose.pose.orientation.y = q_current.y();
-    odom_msg.pose.pose.orientation.z = q_current.z();
-    odom_msg.pose.pose.orientation.w = q_current.w();
-    odom_msg.pose.pose.position.x = t_current.x();
-    odom_msg.pose.pose.position.y = t_current.y();
-    odom_msg.pose.pose.position.z = t_current.z();
-    odom_publisher_->publish(odom_msg);
-    // publish trajectory msg
-    geometry_msgs::msg::PoseStamped pose_msg;
-    pose_msg.pose = odom_msg.pose.pose;
-    pose_msg.header = odom_msg.header;
-    path_msg_.poses.push_back(pose_msg);
-    traj_publisher_->publish(path_msg_);
-    // Publish SAGE-ICP internal data, just for debugging
-    if (publish_frame_){
-        std_msgs::msg::Header frame_header = msg.header;
-        frame_header.frame_id = base_frame_;
-        frame_publisher_->publish(utils::EigenToPointCloud2(frame, frame_header, color_list_));
-        // Map is referenced to the odometry_frame
-        std_msgs::msg::Header local_map_header = msg.header;
-        local_map_header.frame_id = odom_frame_;
-        const auto &local_map = odometry_.LocalMap();
-        map_publisher_->publish(utils::EigenToPointCloud2(local_map, local_map_header, color_list_));
-    }
-
+    Sophus::SE3d pose = odometry_.poses().back(); //Sophus::SE3d
     if (publish_key_frame_){
         bool pub_flag = false;
 
@@ -239,31 +185,79 @@ void OdometryServer::RegisterFrame(const sensor_msgs::msg::PointCloud2::SharedPt
         else pub_flag = true;
 
         if (pub_flag){
+            // correct pose
+            if (opt_pose_flag_){
+                RCLCPP_INFO(this->get_logger(), "Correct pose from iSam2! ");
+                odometry_.opt_poses(opt_error_);
+                opt_pose_flag_ = false;
+                pose = odometry_.poses().back(); // get new pose
+            }
             last_marker_id_++;
             last_pose_ = pose;
             last_key_frame_occ_ = utils::EigenToGridMap(points, key_frame_bounds_, key_frame_occ_size_); 
-            std_msgs::msg::Header frame_header = msg.header;
-            frame_header.frame_id = base_frame_;
             key_frame_publisher_->publish(utils::EigenToPointCloud2(points, frame_header, color_list_));
-            marker_publisher_->publish(utils::OdomToMarker(odom_msg, key_marker_topic_, last_marker_id_));
+            marker_publisher_->publish(utils::PoseToMarker(pose, odom_header, key_marker_topic_, last_marker_id_));
             RCLCPP_INFO(this->get_logger(), "Publish Key frame id: %d", last_marker_id_);
         }
     }
-}
+    
+    // Convert from Eigen to ROS types
+    const Eigen::Vector3d t_current = pose.translation();
+    const Eigen::Quaterniond q_current = pose.unit_quaternion();
+    // Broadcast the tf
+    geometry_msgs::msg::TransformStamped transform_msg;
+    transform_msg.header = odom_header;
+    transform_msg.child_frame_id = base_frame_;
+    transform_msg.transform.rotation.x = q_current.x();
+    transform_msg.transform.rotation.y = q_current.y();
+    transform_msg.transform.rotation.z = q_current.z();
+    transform_msg.transform.rotation.w = q_current.w();
+    transform_msg.transform.translation.x = t_current.x();
+    transform_msg.transform.translation.y = t_current.y();
+    transform_msg.transform.translation.z = t_current.z();
+    tf_broadcaster_->sendTransform(transform_msg);
 
-void OdometryServer::pub_gtpath(const geometry_msgs::msg::PoseStamped::SharedPtr msg_ptr) {
-    const geometry_msgs::msg::PoseStamped &msg = *msg_ptr;
-    // publish gt trajectory msg
-    geometry_msgs::msg::PoseStamped gt_pose_msg;
-    gt_pose_msg.pose = msg.pose;
-    gt_pose_msg.header.stamp = msg.header.stamp;
-    gt_pose_msg.header.frame_id = odom_frame_;
-    gt_path_msg_.poses.push_back(gt_pose_msg);
-    GT_publisher_->publish(gt_path_msg_);
+    // publish odometry msg
+    nav_msgs::msg::Odometry odom_msg;
+    odom_msg.header = odom_header;
+    odom_msg.child_frame_id = base_frame_;
+    odom_msg.pose.pose.orientation.x = q_current.x();
+    odom_msg.pose.pose.orientation.y = q_current.y();
+    odom_msg.pose.pose.orientation.z = q_current.z();
+    odom_msg.pose.pose.orientation.w = q_current.w();
+    odom_msg.pose.pose.position.x = t_current.x();
+    odom_msg.pose.pose.position.y = t_current.y();
+    odom_msg.pose.pose.position.z = t_current.z();
+    odom_publisher_->publish(odom_msg);
+    
+    // publish trajectory msg
+    geometry_msgs::msg::PoseStamped pose_msg;
+    pose_msg.pose = odom_msg.pose.pose;
+    pose_msg.header = odom_header;
+    path_msg_.poses.push_back(pose_msg);
+    traj_publisher_->publish(path_msg_);
+
+    // Publish SAGE-ICP internal data, just for debugging
+    if (publish_frame_){
+        frame_publisher_->publish(utils::EigenToPointCloud2(frame, frame_header, color_list_));
+        const auto &local_map = odometry_.LocalMap();
+        map_publisher_->publish(utils::EigenToPointCloud2(local_map, odom_header, color_list_));
+    }
 }
 
 void OdometryServer::CorrectPose(const visualization_msgs::msg::Marker::SharedPtr msg_ptr) {
-    RCLCPP_INFO(this->get_logger(), "Correct pose from iSam2! ");
+    int opt_marker_id = msg_ptr->id;
+    if (opt_marker_id==0 || opt_marker_id!=last_marker_id_) return;
+    Eigen::Quaterniond opt_quat(msg_ptr->pose.orientation.w,
+                                msg_ptr->pose.orientation.x,
+                                msg_ptr->pose.orientation.y,
+                                msg_ptr->pose.orientation.z);
+    Eigen::Vector3d opt_trans(msg_ptr->pose.position.x,
+                                msg_ptr->pose.position.y,
+                                msg_ptr->pose.position.z);
+    Sophus::SE3d opt_pose(opt_quat, opt_trans);
+    opt_error_ = last_pose_.inverse() * opt_pose;
+    opt_pose_flag_ = true;
 }
 
 void OdometryServer::ReinitService(const std::shared_ptr<rmw_request_id_t> request_header,
@@ -286,6 +280,16 @@ void OdometryServer::ReinitService(const std::shared_ptr<rmw_request_id_t> reque
         std::cout << "Directory does not exist! Creating ..." << std::endl;
     }
     
+    std::cout<<"Writing path.txt..."<<std::endl;
+    std::ofstream fout;
+    fout.open(homepath + "/path.txt");
+    // double timestep = 0.0;
+    for(int i=0;i<path_msg_.poses.size();i++){
+        fout << path_msg_.poses[i].header.stamp.sec << "." << path_msg_.poses[i].header.stamp.nanosec << " " << path_msg_.poses[i].pose.position.x << " " << path_msg_.poses[i].pose.position.y << " " << path_msg_.poses[i].pose.position.z << " " << path_msg_.poses[i].pose.orientation.x << " " << path_msg_.poses[i].pose.orientation.y << " " << path_msg_.poses[i].pose.orientation.z << " " << path_msg_.poses[i].pose.orientation.w << std::endl;
+    }
+    fout.close();
+    //timestamp (s) tx ty tz qx qy qz qw
+
     std::cout << "Writing time.txt..." << std::endl;
     std::ofstream fout_time;
     fout_time.open(homepath + "/time.txt");
@@ -296,8 +300,11 @@ void OdometryServer::ReinitService(const std::shared_ptr<rmw_request_id_t> reque
     
     usleep(5000000); // 5s
     path_msg_.poses.clear();
-    gt_path_msg_.poses.clear();
     time_icp.clear();
+    last_key_frame_occ_.clear();
+    last_pose_ = Sophus::SE3d();
+    opt_error_ = Sophus::SE3d();
+    opt_pose_flag_ = false;
     std::cout << "Finish clearing memory!"<<std::endl;
     response->sum = map_init;
     std::cout << response->sum <<std::endl;
@@ -338,14 +345,6 @@ void ctrl_c_handler(int sig) {
     }
     fout.close();
     //timestamp (s) tx ty tz qx qy qz qw
-    std::cout<<"Writing gt_path.txt..."<<std::endl;
-    std::ofstream fout_gt;
-    fout_gt.open(homepath + "/gt_path.txt");
-    // double timestep_gt = 0.0;
-    for(int i=0;i<gt_path_msg_.poses.size();i++){
-        fout_gt << gt_path_msg_.poses[i].header.stamp.sec << "." << gt_path_msg_.poses[i].header.stamp.nanosec << " " << gt_path_msg_.poses[i].pose.position.x << " " << gt_path_msg_.poses[i].pose.position.y << " " << gt_path_msg_.poses[i].pose.position.z << " " << gt_path_msg_.poses[i].pose.orientation.x << " " << gt_path_msg_.poses[i].pose.orientation.y << " " << gt_path_msg_.poses[i].pose.orientation.z << " " << gt_path_msg_.poses[i].pose.orientation.w << std::endl;
-    }
-    fout_gt.close();
     
     std::cout << "Writing time.txt..." << std::endl;
     std::ofstream fout_time;

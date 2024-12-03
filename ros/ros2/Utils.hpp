@@ -197,16 +197,27 @@ PointCloud2 EigenToPointCloud2(const std::vector<Eigen::Vector4d> &points,
     return msg;
 }
 
-Marker OdomToMarker(const nav_msgs::msg::Odometry &odom_msg,
+Marker PoseToMarker(const Sophus::SE3d &pose,
+                    const Header &header,
                     const std::string &key_frame_topic,
                     const int &last_marker_id){
     Marker marker;
-    marker.header = odom_msg.header;
+    marker.header = header;
     marker.ns = key_frame_topic;
     marker.id = last_marker_id;
     marker.type = Marker::SPHERE;
     marker.action = Marker::ADD;
-    marker.pose = odom_msg.pose.pose;
+
+    const Eigen::Vector3d t_current = pose.translation();
+    const Eigen::Quaterniond q_current = pose.unit_quaternion();
+    marker.pose.orientation.x = q_current.x();
+    marker.pose.orientation.y = q_current.y();
+    marker.pose.orientation.z = q_current.z();
+    marker.pose.orientation.w = q_current.w();
+    marker.pose.position.x = t_current.x();
+    marker.pose.position.y = t_current.y();
+    marker.pose.position.z = t_current.z();
+
     marker.scale.x = 0.3;
     marker.scale.y = 0.3;
     marker.scale.z = 0.3;
