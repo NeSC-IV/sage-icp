@@ -87,12 +87,6 @@ public:
     std::vector<Eigen::Vector4d> TransformToLastFrame(const Sophus::SE3d &last_pose,
                                                         const Sophus::SE3d &current_pose,
                                                         const std::vector<Eigen::Vector4d> &points);
-    void opt_poses(const Sophus::SE3d &opt_error){
-        const size_t N = poses_.size();
-        if (N < 2) return;
-        poses_[N - 2] = poses_[N - 2] * opt_error;
-        poses_[N - 1] = poses_[N - 1] * opt_error;
-    }
     
     // Extra C++ API to facilitate ROS debugging
     std::vector<Eigen::Vector4d> LocalMap() const { return sem_map_.Pointcloud(); };

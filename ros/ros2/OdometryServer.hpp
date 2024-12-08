@@ -102,8 +102,8 @@ private:
     std::vector<std::vector<double>> key_frame_bounds_;
     std::vector<int> key_frame_occ_size_;
     int last_marker_id_{-1};
-    Sophus::SE3d last_pose_, opt_error_;
-    bool opt_pose_flag_{false};
+    Sophus::SE3d last_pose_{Sophus::SE3d()};
+    Sophus::SE3d opt_error_{Sophus::SE3d()};
     std::vector<std::vector<int>> last_key_frame_occ_;
 };
 

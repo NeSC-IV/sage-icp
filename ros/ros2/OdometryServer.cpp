@@ -173,6 +173,7 @@ void OdometryServer::RegisterFrame(const sensor_msgs::msg::PointCloud2::SharedPt
     
     // PublishPose
     Sophus::SE3d pose = odometry_.poses().back(); //Sophus::SE3d
+    Sophus::SE3d pose_corr = pose * opt_error_;
     if (publish_key_frame_){
         bool pub_flag = false;
 
@@ -185,25 +186,18 @@ void OdometryServer::RegisterFrame(const sensor_msgs::msg::PointCloud2::SharedPt
         else pub_flag = true;
 
         if (pub_flag){
-            // correct pose
-            if (opt_pose_flag_){
-                RCLCPP_INFO(this->get_logger(), "Correct pose from iSam2! ");
-                odometry_.opt_poses(opt_error_);
-                opt_pose_flag_ = false;
-                pose = odometry_.poses().back(); // get new pose
-            }
             last_marker_id_++;
             last_pose_ = pose;
             last_key_frame_occ_ = utils::EigenToGridMap(points, key_frame_bounds_, key_frame_occ_size_); 
             key_frame_publisher_->publish(utils::EigenToPointCloud2(points, frame_header, color_list_));
-            marker_publisher_->publish(utils::PoseToMarker(pose, odom_header, key_marker_topic_, last_marker_id_));
+            marker_publisher_->publish(utils::PoseToMarker(pose_corr, odom_header, key_marker_topic_, last_marker_id_));
             RCLCPP_INFO(this->get_logger(), "Publish Key frame id: %d", last_marker_id_);
         }
     }
     
     // Convert from Eigen to ROS types
-    const Eigen::Vector3d t_current = pose.translation();
-    const Eigen::Quaterniond q_current = pose.unit_quaternion();
+    const Eigen::Vector3d t_current = pose_corr.translation();
+    const Eigen::Quaterniond q_current = pose_corr.unit_quaternion();
     // Broadcast the tf
     geometry_msgs::msg::TransformStamped transform_msg;
     transform_msg.header = odom_header;
@@ -246,6 +240,7 @@ void OdometryServer::RegisterFrame(const sensor_msgs::msg::PointCloud2::SharedPt
 }
 
 void OdometryServer::CorrectPose(const visualization_msgs::msg::Marker::SharedPtr msg_ptr) {
+    RCLCPP_INFO(this->get_logger(), "Correct pose from iSam2! ");
     int opt_marker_id = msg_ptr->id;
     if (opt_marker_id==0 || opt_marker_id!=last_marker_id_) return;
     Eigen::Quaterniond opt_quat(msg_ptr->pose.orientation.w,
@@ -257,7 +252,6 @@ void OdometryServer::CorrectPose(const visualization_msgs::msg::Marker::SharedPt
                                 msg_ptr->pose.position.z);
     Sophus::SE3d opt_pose(opt_quat, opt_trans);
     opt_error_ = last_pose_.inverse() * opt_pose;
-    opt_pose_flag_ = true;
 }
 
 void OdometryServer::ReinitService(const std::shared_ptr<rmw_request_id_t> request_header,
@@ -304,7 +298,6 @@ void OdometryServer::ReinitService(const std::shared_ptr<rmw_request_id_t> reque
     last_key_frame_occ_.clear();
     last_pose_ = Sophus::SE3d();
     opt_error_ = Sophus::SE3d();
-    opt_pose_flag_ = false;
     std::cout << "Finish clearing memory!"<<std::endl;
     response->sum = map_init;
     std::cout << response->sum <<std::endl;
