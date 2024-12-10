@@ -20,7 +20,8 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(
         os.path.join(
             get_package_share_directory('sage_icp'),
-            'launch/odometry_livox_launch.py'))
+            'launch',
+            'odom_livox_launch.py'))
     )
     # SMENet
     smenet_node = IncludeLaunchDescription(
@@ -37,31 +38,11 @@ def generate_launch_description():
             'launch',
             'optimize_launch.py'))
     )
-    # RVIZ2
-    rviz2_node = Node(
-                    package="rviz2",
-                    executable="rviz2",
-                    output={"both": "log"},
-                    arguments=["-d", PathJoinSubstitution([FindPackageShare("sage_icp"), "rviz", "semantic_slam.rviz"])],
-                    condition=IfCondition("true"),
-                    )
-    # ROS2 bag play
-    bag_file = "" # bag file name
-    bag_play = ExecuteProcess(
-                    cmd=["ros2", "bag", "play", bag_file],
-                    output="screen",
-                    condition=IfCondition(
-                        PythonExpression(["'", bag_file, "' != ''"])
-                    ),
-                )
-
     return LaunchDescription(
         [
             sage_icp_node,
             smenet_node,
             sam_node,
-            rviz2_node,
-            bag_play,
         ]
     )
 

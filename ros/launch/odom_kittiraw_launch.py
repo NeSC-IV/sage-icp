@@ -10,93 +10,43 @@ from launch.substitutions import (
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 import os
-import yaml
-class Basic_config():
-    def __init__(self, color_yaml="semantic-kitti.yaml"):
-        # ROS2 parameters
-        self.pc_topic: str = "/label_points" # input pointcloud topic
-        self.base_frame: str = "base_link"
-        self.odom_frame: str = "odom"
-        self.odom_topic: str = "/sage_icp/odometry"
-        self.trajectory_topic: str = "/sage_icp/trajectory"
-
-        self.publish_frame: bool = True # publish frame in odom and map for visualization
-        self.frame_topic: str = "/sage_icp/frame"
-        self.local_map_topic: str = "/sage_icp/local_map"
-
-        self.sub_correct_pose: bool = True
-        self.correct_pose_topic: str = "/sem_sam/correct_marker" # correct odometry topic
-        
-        # Pointcloud pre-process
-        self.deskew: bool = False # Point cloud deskew
-        self.max_range: float = 30.0 # pointcloud max range
-        self.min_range: float = 1.0 # pointcloud min range
-        self.label_max_range: float = 20.0 # label max range
+import sys
+current_pkg_path = os.path.join(FindPackageShare("sage_icp").find("sage_icp"), "launch")
+sys.path.append(current_pkg_path)
+from base_launch import Base_config
+class KITTIRAW_config(Base_config):
+    def __init__(self,
+                 color_yaml="semantic-kitti.yaml",
+                 publish_frame=True,
+                 deskew=False,
+                 dynamic_vehicle_filter=False,
+                 publish_key_frame=True,
+                 sub_correct_pose=True,
+                 ):
+        super().__init__(color_yaml=color_yaml,
+                         publish_frame=publish_frame,
+                         deskew=deskew,
+                         dynamic_vehicle_filter=dynamic_vehicle_filter,
+                         publish_key_frame=publish_key_frame,
+                         sub_correct_pose=sub_correct_pose)
         
         # Voxel grid filter
-        self.voxel_labels = [
-            [0],  # unlabelled
-            [1, 8],  # object
-            [2, 3, 4, 5],  # furniture
-            [6, 7, 10, 11, 12, 13],  # large planar
-        ]
-        self.voxel_labels_str: str = self.pack_2d_array(self.voxel_labels) # pack 2d array to string
-        self.voxel_size: list = [0.5, 0.1, 0.2, 0.3]
-
-        # Dynamic cars remove
-        self.dynamic_vehicle_filter: bool = False
-        self.dynamic_vehicle_filter_th: float = 0.1
-        self.dynamic_vehicle_voxid: int = 5 # voxid in voxel_labels
-        self.dynamic_remove_lankmark: list = [44, 48] # landmark labels for dynamic remove
+        self.voxel_size: list = [1.2, 1.0, 1.2, 0.2, 1.0, 0.5]
         
         # Map
-        self.voxel_size_map: float = 0.2
-        self.local_map_range: float = 30.0
-        self.basic_points_per_voxel: int = 20 # basic part
-        self.critical_points_per_voxel: int = 20 # critical part
-        self.basic_parts_labels: list = [0, 2, 3, 4, 5, 6, 7, 10, 11, 12, 13] # basic parts labels, others are critical parts
+        self.voxel_size_map: float = 1.0
         
         # Semantic assisted association
         self.sem_th: float = 0.2
-        
-        # KISS-ICP Adaptive threshold
-        self.initial_threshold: float = 2.0
-        self.min_motion_th: float = 0.1
-
-        # color map
-        self.current_pkg = FindPackageShare("sage_icp")
-        current_pkg_path_str = self.current_pkg.find("sage_icp")
-        label_mapping = os.path.join(current_pkg_path_str, "launch", color_yaml)
-        with open(label_mapping, 'r') as stream:
-            semkittiyaml = yaml.safe_load(stream)
-        color_map_bgr = semkittiyaml['color_map']
-        self.color_list = []
-        for key, value in color_map_bgr.items():
-            b, g, r = value
-            rgb = (int(r) << 16) | (int(g) << 8) | int(b)
-            self.color_list.append([key,rgb])
-        self.color_list_str: str = self.pack_2d_array(self.color_list)
-
-        # Key Frames extract
-        self.publish_key_frame: bool = True # publish key frame
-        self.key_frame_topic: str = "/sage_icp/key_frame"
-        self.key_marker_topic: str = "/sage_icp/key_marker"
-        self.key_frame_overlap: float = 0.5 # map sample overlap
-        self.key_frame_bounds: list = [[-30, 30], [-30, 30], [-1.5, 1.8]] # Point Cloud Boundaries, used for generate occupancy map
-        self.key_frame_bounds_str: str = self.pack_2d_array(self.key_frame_bounds)
-        self.key_frame_occ_size: list = [128, 128] # H*W, occ resolution
-
-        # RVIZ2 and ROS2 bag play
-        self.visualize: str = "true" # must be string
-        self.bagfile: str = ""
-    
-    def pack_2d_array(self, array_2d):
-        return ';'.join([','.join(map(str, row)) for row in array_2d])
-
 
 def generate_launch_description():
     
-    sage_icp_config = Basic_config("livox_labels.yaml")
+    sage_icp_config = KITTIRAW_config(color_yaml="semantic-kitti.yaml",
+                                      publish_frame=True,
+                                      deskew=False,
+                                      dynamic_vehicle_filter=True,
+                                      publish_key_frame=True,
+                                      sub_correct_pose=True,)
     # SAGE-ICP Node
     sage_icp_node = Node(
                     package="sage_icp",
@@ -145,13 +95,13 @@ def generate_launch_description():
                     ],
                 )
     # RVIZ2
-    # rviz2_node = Node(
-    #                 package="rviz2",
-    #                 executable="rviz2",
-    #                 output={"both": "log"},
-    #                 arguments=["-d", PathJoinSubstitution([sage_icp_config.current_pkg, "rviz", "sage_icp_ros2.rviz"])],
-    #                 condition=IfCondition(sage_icp_config.visualize),
-    #                 )
+    rviz2_node = Node(
+                    package="rviz2",
+                    executable="rviz2",
+                    output={"both": "log"},
+                    arguments=["-d", PathJoinSubstitution([FindPackageShare("sage_icp"), "rviz", "semantic_slam.rviz"])],
+                    condition=IfCondition("true"),
+                    )
     # ROS2 bag play
     # bag_play = ExecuteProcess(
     #                 cmd=["ros2", "bag", "play", sage_icp_config.bagfile],
@@ -163,7 +113,7 @@ def generate_launch_description():
     return LaunchDescription(
         [
             sage_icp_node,
-            # rviz2_node,
+            rviz2_node,
             # bag_play,
         ]
     )

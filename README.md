@@ -35,28 +35,36 @@ pip install transforms3d kiss-icp lark-parser
 mkdir -p ~/sage-icp/src && cd ~/sage-icp/src
 git clone https://github.com/NeSC-IV/sage-icp.git
 cd .. && colcon build --symlink-install
+source install/setup.bash
 ```
 
 ## Evaluation
-To evaluate on LIVOX Odometry, please run:
+First, start a semantic point cloud publishing node:
 ```sh
-source install/setup.bash
-ros2 launch sage_icp odometry_livox_launch.py
+# Cylinder3D for VLP-64
+ros2 launch cylinder3d_ros2 cylinder3d_ros2.launch.py
+# RangeNet++ for VLP-64
+ros2 launch rangenet_pp ros2_rangenet.launch.py
+# or you can use a script in eval/
+python kitti_pub.py
 ```
-To evaluate on LIVOX SLAM, please run:
+To evaluate sage-icp only, please run:
 ```sh
-source install/setup.bash
-ros2 launch sage_icp livox_slam_launch.py
+# for KITTI Odometry using gt semantic label
+ros2 launch sage_icp odom_kittigt_launch.py
+# for KITTI Odometry using semantic segmentation model
+ros2 launch sage_icp odom_kitti_launch.py
+# for KITTI raw using semantic segmentation model
+ros2 launch sage_icp odom_kittiraw_launch.py
+# for KITTI360 using semantic segmentation model
+ros2 launch sage_icp odom_kitti360_launch.py
+# for LIVOX
+ros2 launch sage_icp odom_livox_launch.py
 ```
-To evaluate cylinder3D on KITTI Odometry, please run:
+To evaluate on Semantic SLAM, please run:
 ```sh
 source install/setup.bash
-ros2 launch sage_icp sem_odom_launch.py
-```
-To evaluate RangeNet++ on KITTI Odometry, please run:
-```sh
-source install/setup.bash
-ros2 launch sage_icp range_odom_launch.py
+ros2 launch sage_icp slam_livox_launch.py
 ```
 ## topics
 ### input topic
